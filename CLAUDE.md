@@ -36,13 +36,17 @@
 ## 빌드/테스트 명령어
 
 ```bash
-make install     # uv/pip 로 의존성 설치
-make test        # pytest 실행
-make coverage    # 커버리지 리포트
-make lint        # ruff + nbqa (notebooks 포함)
-make fmt         # ruff format
-make nb-clean    # 노트북 출력 셀 정리 (nbstripout)
+make install-notebook  # uv 로 .venv + dev/notebook 의존성 설치
+make kernel            # .venv 를 Jupyter 커널로 등록 ("GraphLM (uv .venv)")
+make test              # pytest 실행 (uv run)
+make coverage          # 커버리지 리포트
+make lint              # ruff + nbqa (notebooks 포함)
+make fmt               # ruff format
+make nb-clean          # 노트북 출력 셀 정리 (nbstripout)
 ```
+
+모든 명령은 내부적으로 `uv run` 으로 `.venv` 를 사용합니다.
+직접 셸에서 실행하려면 `source .venv/bin/activate` 후 진행.
 
 ## 디렉토리 구조 (요약)
 

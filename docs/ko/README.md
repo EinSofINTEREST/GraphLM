@@ -47,43 +47,56 @@ GraphLM/
 ### 사전 요구사항
 
 - Python 3.11+
-- (권장) `uv` 또는 `pip`
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - (선택) GPU (CUDA 11.8+)
 
-### 설치
+### 설치 (uv 기반)
 
 ```bash
 git clone <repo-url>
 cd GraphLM
 
-# editable install + 개발 의존성
-pip install -e ".[dev]"
-
-# (선택) Jupyter
-pip install jupyter
+# .venv 생성 + dev/notebook 의존성 + editable 설치 + Jupyter 커널 등록
+make install-notebook
+make kernel
 ```
+
+`make kernel` 실행 후 Jupyter 의 커널 선택 메뉴에 **GraphLM (uv .venv)** 항목이 나타납니다.
+새 노트북 생성 시 이 커널을 선택하면 `.venv` 의 패키지를 그대로 import 할 수 있습니다.
 
 ### 자주 쓰는 명령
 
 ```bash
-make install     # 의존성 설치
-make test        # pytest 실행
-make coverage    # 커버리지 리포트 (term + html)
-make lint        # ruff check + nbqa
-make fmt         # ruff format
-make nb-clean    # 노트북 output cell 정리
-make help        # 모든 타겟 표시
+make venv             # .venv 생성만
+make install          # .venv + dev 의존성 (노트북 제외)
+make install-notebook # .venv + dev + notebook 의존성
+make kernel           # .venv 를 Jupyter 커널로 등록
+make test             # pytest 실행 (uv run)
+make coverage         # 커버리지 리포트
+make lint             # ruff check + nbqa
+make fmt              # ruff format
+make nb-clean         # 노트북 output cell 정리
+make help             # 모든 타겟 표시
 ```
+
+> `make` 타겟은 내부적으로 `uv run` 으로 `.venv` 를 사용합니다.
+> `source .venv/bin/activate` 로 활성화 후 직접 명령을 실행해도 됩니다.
 
 ### 실험 실행
 
 ```bash
-# Jupyter 서버 기동
-jupyter lab
+# Jupyter 서버 기동 (커널 선택: "GraphLM (uv .venv)")
+uv run jupyter lab
 
 # 또는 노트북을 스크립트로 실행
-jupyter nbconvert --to notebook --execute notebooks/10-experiments/<파일>.ipynb
+uv run jupyter nbconvert --to notebook --execute notebooks/10-experiments/<파일>.ipynb
 ```
+
+### VS Code / Cursor 에서 노트북 열기
+
+1. 노트북 (`.ipynb`) 파일 우상단의 **커널 선택** 클릭
+2. **GraphLM (uv .venv)** 선택
+3. 셀 실행 시 `.venv` 의 `graphlm` 패키지가 import 됨
 
 ## 개발 워크플로 (AI 협업 포함)
 
