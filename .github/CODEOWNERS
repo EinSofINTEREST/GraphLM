@@ -1,0 +1,24 @@
+# CODEOWNERS
+#
+# 의도적으로 전역 `*` 패턴을 두지 않습니다.
+#   - Ruleset "Require review from Code Owners" 와 결합 시 전역 `*`는
+#     저장소의 모든 PR이 단일 소유자 승인에 종속되어 머지 병목을 유발합니다.
+#   - 보호가 필요한 핵심 경로만 명시적으로 나열합니다.
+
+# 거버넌스 / CI / 워크플로
+/.github/                       @juhy0987
+
+# CI 운영 문서
+/docs/ci/                       @juhy0987
+
+# 의존성 / 패키지 메타데이터
+/pyproject.toml                 @juhy0987
+
+# 패키지 본체
+/src/graphlm/                   @juhy0987
+
+# 테스트
+/tests/                         @juhy0987
+
+# 빌드 / 진입점
+/Makefile                       @juhy0987

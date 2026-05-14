@@ -1,0 +1,136 @@
+name: CI - Quality
+
+# 코드 빌드/테스트/정적 분석 워크플로 (Python)
+# Convention 검증(커밋·PR 타이틀 형식)은 ci-convention.yml 에 분리되어 있습니다.
+# job `name:` 값은 GitHub Required Status Check 컨텍스트로 사용되므로 변경 금지
+# (docs/ci/status-checks.md 단일 소스 참조).
+
+on:
+  pull_request:
+    branches: ["**"]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Check ruff format
+        run: |
+          if ! ruff format --check .; then
+            {
+              echo "## ❌ Format Check 실패"
+              echo "다음 파일이 ruff format 포맷을 따르지 않습니다. 아래 명령으로 수정하세요:"
+              echo ""
+              echo '```'
+              echo "ruff format ."
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "## ✅ Format Check 통과" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install package
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Verify import
+        run: |
+          python -c "import graphlm; print('graphlm import OK')"
+          echo "## ✅ Build (import) 성공" >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Run pytest
+        run: |
+          pytest -m "not slow and not gpu and not network" \
+            --cov=graphlm \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=70
+
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ ! -f coverage.xml ]; then
+            echo "## ⚠️ 커버리지 파일 없음 (테스트 실패)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # coverage.xml 에서 line-rate 추출 (Cobertura 형식)
+          rate=$(python -c "import xml.etree.ElementTree as ET; root = ET.parse('coverage.xml').getroot(); print(f\"{float(root.attrib['line-rate']) * 100:.2f}\")")
+          {
+            echo "## 📊 테스트 커버리지: ${rate}%"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "|------|-----|"
+            echo "| 전체 커버리지 | **${rate}%** |"
+            echo "| 임계값 | 70% |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff + nbqa
+        run: pip install ruff nbqa
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: nbqa ruff (notebooks)
+        run: |
+          if [ -d notebooks ]; then
+            nbqa ruff notebooks/
+          else
+            echo "notebooks/ 디렉토리가 없어 nbqa skip" >> "$GITHUB_STEP_SUMMARY"
+          fi
