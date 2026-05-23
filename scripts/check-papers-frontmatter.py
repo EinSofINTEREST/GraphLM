@@ -53,20 +53,24 @@ def parse_frontmatter_keys(text: str) -> dict[str, str]:
         if not m:
             continue
         key = m.group(1)
-        value = line[m.end() :].strip()
+        # 인라인 주석 (` # ...`) 제거. 따옴표 내부 # 은 보존되지 않지만 frontmatter 값에 거의 없음
+        value = re.split(r"\s+#", line[m.end() :], maxsplit=1)[0].strip()
         keys[key] = value
     return keys
 
 
 def is_placeholder(value: str) -> bool:
-    """frontmatter 값이 미작성 placeholder 인지 판정."""
+    """frontmatter 값이 미작성 placeholder 인지 판정.
+
+    빈 값 외에 `<...>` 형태의 마커가 값 어디든 (리스트 내부 포함) 있으면 placeholder 로 본다.
+    예: ``<YYYY>``, ``["<카테고리 키워드들>"]``.
+    """
     if not value:
         return True
     stripped = value.strip().strip('"').strip("'")
     if not stripped:
         return True
-    # `<...>` / `<YYYY>` 같은 placeholder
-    return stripped.startswith("<") and stripped.endswith(">")
+    return bool(re.search(r"<[^>]+>", value))
 
 
 def check_file(path: Path) -> list[str]:
