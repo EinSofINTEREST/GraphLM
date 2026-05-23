@@ -57,7 +57,7 @@ Branch Protection 대신 **Repository Ruleset**을 기본 수단으로 운영합
 | `Format Check` | `ci-quality.yml` | `ruff format --check` 준수 여부 | 코드 포맷 미정리 |
 | `Build` | `ci-quality.yml` | `pip install -e ".[dev]"` + `import graphlm` | 패키지 깨짐 — 즉시 수정 |
 | `Test` | `ci-quality.yml` | `pytest --cov --cov-fail-under=70` (slow/gpu/network 제외) | 로직 오류 또는 커버리지 미달 |
-| `Lint` | `ci-quality.yml` | `ruff check .` + `nbqa ruff notebooks/` | 코드 품질 / notebook 품질 이슈 |
+| `Lint` | `ci-quality.yml` | `ruff check .` + `nbqa ruff notebooks/` + `docs/papers` frontmatter 검증 | 코드 품질 / notebook 품질 / 논문 요약 메타데이터 이슈 |
 | `Commit Lint` | `ci-convention.yml` | 커밋 메시지 `[카테고리]:` 포맷 강제 | 컨벤션 위반 |
 | `PR Title Lint` | `ci-convention.yml` | PR 타이틀 `[카테고리#이슈번호] 제목` 엄격 강제 | 컨벤션 위반 |
 | `Linked Issue Check` | `ci-convention.yml` | PR 에 머지 시 close 될 이슈가 1개 이상 연결 | closing reference 누락 |
