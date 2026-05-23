@@ -101,9 +101,20 @@ docs/papers/
 | [hybrid/2023-glem-zhao.md](hybrid/2023-glem-zhao.md) | 2023 | GLEM | LM ↔ GNN 을 EM 으로 번갈아 학습, 대규모 OGB SOTA |
 | [hybrid/2024-graphgpt-tang.md](hybrid/2024-graphgpt-tang.md) | 2024 | GraphGPT | Graph encoder 출력을 LLM token 으로 instruction tuning |
 
-### Computation-graph (예정)
+### Computation-graph (본 프로젝트 1순위)
 
-본 프로젝트 1순위 큐레이션 영역. 다음 PR 에서 MoE / Mixture of Depths / GHN 계열 5~7편이 추가될 예정.
+> ⭐ **본 프로젝트의 핵심 패러다임 (computation-as-graph) 정렬** — 1순위 큐레이션 영역. Transformer 의 sub-component (FFN expert, attention head, layer block) 를 노드로 정의하는 모든 갈래.
+
+| 파일 | 연도 | 모델/방법 | 한줄 요약 |
+|---|---|---|---|
+| [computation-graph/2017-moe-shazeer.md](computation-graph/2017-moe-shazeer.md) | 2017 | Sparsely-Gated MoE | Top-$k$ gating 으로 expert routing 학습 — conditional computation 의 시초 |
+| [computation-graph/2019-universal-transformer-dehghani.md](computation-graph/2019-universal-transformer-dehghani.md) | 2019 | Universal Transformer | 같은 block 반복 + token 별 dynamic halting (ACT) |
+| [computation-graph/2021-gshard-lepikhin.md](computation-graph/2021-gshard-lepikhin.md) | 2021 | GShard | Top-2 gating + expert capacity + load balance — MoE scaling 표준 |
+| [computation-graph/2021-autoformer-chen.md](computation-graph/2021-autoformer-chen.md) | 2021 | AutoFormer | NAS for Transformer, weight entanglement 로 supernet 동시 학습 |
+| [computation-graph/2022-switch-transformer-fedus.md](computation-graph/2022-switch-transformer-fedus.md) | 2022 | Switch Transformer | Top-1 gating 으로 MoE 단순화, 1.6T 파라미터 달성 |
+| [computation-graph/2023-ghn3-knyazev.md](computation-graph/2023-ghn3-knyazev.md) | 2023 | GHN-3 | NN architecture 자체를 DAG 으로, hypernetwork 가 weight 예측 |
+| [computation-graph/2024-mod-raposo.md](computation-graph/2024-mod-raposo.md) | 2024 | Mixture of Depths | Expert-choice router 가 layer 별 token 통과 여부 결정 — layer routing |
+| [computation-graph/2024-mixtral-jiang.md](computation-graph/2024-mixtral-jiang.md) | 2024 | Mixtral 8×7B | 8 expert top-2 MoE LLM, open-weight, 현대 MoE production reference |
 
 ## 작성 원칙
 
