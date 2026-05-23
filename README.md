@@ -2,9 +2,11 @@
 
 **[한국어](docs/ko/README.md)** | English (TBD)
 
-> Research codebase combining graph structures with language models.
+> Research codebase treating the **internal structure of Transformers as a graph** — each FFN expert, attention head, or layer block is a node; tokens are routed and aggregated across them. (computation-as-graph, **not** data-as-graph.)
 
 Python 3.11+, Jupyter notebooks for experiments, package code in `src/graphlm/`.
+
+See [CLAUDE.md](CLAUDE.md#핵심-패러다임--computation-as-graph) for the full paradigm definition.
 
 ## Quick start
 

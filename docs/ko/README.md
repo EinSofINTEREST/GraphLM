@@ -2,13 +2,18 @@
 
 한국어 | _English (TBD)_
 
-> 그래프 구조와 언어 모델을 결합한 연구·실험 프로젝트
+> **Transformer 내부 구조를 graph 로 바라보는** 연구·실험 프로젝트
 
 ## 개요
 
-GraphLM 은 그래프(Graph) 표현과 언어 모델(Language Model) 을 결합해 다양한
-가설을 검증하는 연구 코드베이스입니다. 주 언어는 Python, 실험은 Jupyter
-Notebook(`.ipynb`)으로 진행합니다.
+GraphLM 은 **Transformer 의 내부 sub-component (FFN expert, attention head, layer block 등) 를 그래프의 노드로 정의** 하고, token 임베딩이 그 노드 graph 위에서 routing / aggregation 되는 학습 framework 를 다룹니다.
+
+> **핵심 패러다임**: **computation-as-graph** (Transformer 내부 구조 = 노드 graph)
+> 데이터 객체 (문서/분자/user 등) 를 노드로 보는 **data-as-graph** 방향이 **아닙니다**. 일반 GCN/GAT/GraphSAGE 류는 baseline 비교 reference 로만 다룹니다.
+>
+> 대표 갈래: **MoE** (Switch Transformer, Mixtral), **Mixture of Depths**, **Graph HyperNetwork (GHN)**, NAS-Transformer.
+
+주 언어는 Python, 실험은 Jupyter Notebook(`.ipynb`) 으로 진행합니다. 패러다임의 전체 정의는 [CLAUDE.md](../../CLAUDE.md#핵심-패러다임--computation-as-graph) 참조.
 
 ## 주요 특징
 
