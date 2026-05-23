@@ -14,7 +14,7 @@ GraphLM 의 핵심 패러다임은 **training-time dynamic parameter count** (�
 |---|---|---|
 | `graph/`, `hybrid/` (기존 8편) | **data-as-graph** | **Baseline reference 보존** — 직접 채택 대상 아님. "데이터를 graph 로" 의 비교군. |
 | `computation-graph/` (sparse activation 6편) | **computation-as-graph (sparse activation 위주)** | **부분적 reference** — MoE/MoD/UT 6편은 \"고정 총량 + 동적 활성\" 이라 본 프로젝트 1순위가 아님. AutoFormer (NAS) / GHN-3 (arch-as-graph) 는 architecture-as-graph 측면 보조 정렬. |
-| `computation-graph/` (dynamic param 12편) ⭐ | **training-time dynamic param count (THIS)** | **1순위 큐레이션** — Growing Networks (5) / DST (2) / DARTS (1) / **Adaptive Trigger (4)** |
+| `computation-graph/` (dynamic param 16편) ⭐ | **training-time dynamic param count (THIS)** | **1순위 큐레이션** — Growing Networks (5) / DST (3) / DARTS (1) / Adaptive Trigger (5) / Resource·Deployment (2) |
 | `lm/` (미사용) | LM 일반 | 필요 시 활성화 |
 
 신규 논문 요약 추가 시 **dynamic parameter count 계열** (Growing / DST / DARTS) 을 우선한다. sparse activation (MoE 류) 와 data-as-graph 는 둘 다 reference 자료 — 직접적 baseline 가치가 명확할 때만 추가.
@@ -145,7 +145,8 @@ docs/papers/
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
 | [computation-graph/2018-set-mocanu.md](computation-graph/2018-set-mocanu.md) | 2018 | SET | DST 시초 — sparse-from-start + prune-and-random-regrow per epoch |
-| [computation-graph/2020-rigl-evci.md](computation-graph/2020-rigl-evci.md) | 2020 | RigL | Magnitude prune + gradient-based regrowth — DST modern recipe |
+| [computation-graph/2020-rigl-evci.md](computation-graph/2020-rigl-evci.md) | 2020 | RigL | Magnitude prune + gradient-based regrowth — DST modern recipe (vision) |
+| [computation-graph/2020-top-kast-jayakumar.md](computation-graph/2020-top-kast-jayakumar.md) | 2020 | Top-KAST | Always-sparse training with forward/backward mask 분리 — **Transformer LM 검증** |
 
 #### Differentiable Architecture Search
 
@@ -162,7 +163,15 @@ docs/papers/
 | [computation-graph/2018-den-yoon.md](computation-graph/2018-den-yoon.md) | 2018 | DEN | task loss > threshold → capacity expansion (continual learning) |
 | [computation-graph/2020-autogrow-wen.md](computation-graph/2020-autogrow-wen.md) | 2020 | AutoGrow | validation accuracy plateau ($\sigma_W < \epsilon$) → layer 추가 |
 | [computation-graph/2020-firefly-wu.md](computation-graph/2020-firefly-wu.md) | 2020 | Firefly NAD | candidate node 의 functional gradient → top-$k$ 추가 |
+| [computation-graph/2022-gradmax-evci.md](computation-graph/2022-gradmax-evci.md) | 2022 | GradMax | function-preserving + gradient-maximizing init — 성장 직후 학습 가속 |
 | [computation-graph/2024-self-expanding-mitchell.md](computation-graph/2024-self-expanding-mitchell.md) | 2024 | Self-Expanding NN | natural rate-of-change (Fisher info) — unified trigger formulation |
+
+#### Resource / Deployment (자원 제약 + 배포 유연성)
+
+| 파일 | 연도 | 모델/방법 | 한줄 요약 |
+|---|---|---|---|
+| [computation-graph/2018-morphnet-gordon.md](computation-graph/2018-morphnet-gordon.md) | 2018 | MorphNet | FLOPs / latency budget 하 shrink-then-expand morphism |
+| [computation-graph/2020-once-for-all-cai.md](computation-graph/2020-once-for-all-cai.md) | 2020 | Once-for-All | Train once, deploy many — progressive shrinking supernet |
 
 ## 작성 원칙
 
