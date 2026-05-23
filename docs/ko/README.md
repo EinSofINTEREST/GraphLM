@@ -2,18 +2,25 @@
 
 한국어 | _English (TBD)_
 
-> **Transformer 내부 구조를 graph 로 바라보는** 연구·실험 프로젝트
+> **학습 중 Transformer 의 파라미터 수를 동적으로 조정** 하기 위해 모델 구조를 graph 로 다루는 연구·실험 프로젝트
 
 ## 개요
 
-GraphLM 은 **Transformer 의 내부 sub-component (FFN expert, attention head, layer block 등) 를 그래프의 노드로 정의** 하고, token 임베딩이 그 노드 graph 위에서 routing / aggregation 되는 학습 framework 를 다룹니다.
+GraphLM 은 **학습 과정에서 Transformer 의 파라미터 수 자체가 변동** 하는 모델을 다룹니다. graph 표현은 그 변동을 다루기 위한 도구 (어떤 module 을 추가/제거할지, 어떤 connection 을 살릴지 등) 일 뿐이고, 진짜 목적은 **training-time dynamic parameter count**.
 
-> **핵심 패러다임**: **computation-as-graph** (Transformer 내부 구조 = 노드 graph)
-> 데이터 객체 (문서/분자/user 등) 를 노드로 보는 **data-as-graph** 방향이 **아닙니다**. 일반 GCN/GAT/GraphSAGE 류는 baseline 비교 reference 로만 다룹니다.
+> **핵심 패러다임**: **Training-time dynamic parameter count** (학습 중 총 파라미터 수 변동)
 >
-> 대표 갈래: **MoE** (Switch Transformer, Mixtral), **Mixture of Depths**, **Graph HyperNetwork (GHN)**, NAS-Transformer.
+> 본 프로젝트가 다루지 **않는** 두 방향:
+> - **Data-as-graph** (문서/분자/user 가 노드) — GCN/GAT/GraphSAGE 류 → baseline reference 만
+> - **Sparse activation with fixed total** (MoE / Mixture of Depths / Universal Transformer) — 총 파라미터 고정, 활성만 동적 → baseline reference 만
+>
+> 본 프로젝트 1순위 갈래:
+> - **Growing Networks** (function-preserving expansion): Net2Net, bert2BERT, **LiGO** (ICLR 2023), MSG
+> - **Progressive Stacking**: Stacking BERT (ICML 2019)
+> - **Dynamic Sparse Training (DST)**: SET (Nature Comm 2018), **RigL** (ICML 2020)
+> - **Differentiable Architecture Search**: DARTS (ICLR 2019)
 
-주 언어는 Python, 실험은 Jupyter Notebook(`.ipynb`) 으로 진행합니다. 패러다임의 전체 정의는 [CLAUDE.md](../../CLAUDE.md#핵심-패러다임--computation-as-graph) 참조.
+주 언어는 Python, 실험은 Jupyter Notebook(`.ipynb`) 으로 진행합니다. 패러다임의 전체 정의는 [CLAUDE.md](../../CLAUDE.md#핵심-패러다임--training-time-dynamic-parameter-count) 참조.
 
 ## 주요 특징
 
