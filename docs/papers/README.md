@@ -6,6 +6,18 @@ GraphLM 연구 진행에 참조하는 논문·레퍼런스의 **핵심 요약을
 시사점** 만 저장한다. 요약은 단순 번역·복사가 아니라 "왜 이 논문이 우리 작업에 관련 있는가"
 를 명시한다.
 
+## 패러다임 기반 분류
+
+GraphLM 의 핵심 패러다임은 **computation-as-graph** (Transformer 내부 구조를 graph 로) 입니다. 자세한 정의는 [`CLAUDE.md`](../../CLAUDE.md#핵심-패러다임--computation-as-graph) 참조.
+
+| 카테고리 | 패러다임 정렬 | 본 프로젝트에서의 위상 |
+|---|---|---|
+| `graph/`, `hybrid/` (기존 8편) | **data-as-graph** | **Baseline reference 보존** — 직접 채택 대상 아님. \"어떤 방법이 이미 있는가\" 의 비교군. |
+| `computation-graph/` (예정, 다음 PR) | **computation-as-graph** | **1순위 큐레이션** — MoE / Mixture of Depths / GHN / NAS-Transformer 등 |
+| `lm/` (미사용) | LM 일반 | 필요 시 활성화 |
+
+신규 논문 요약 추가 시 **computation-as-graph 계열** 을 우선한다. data-as-graph 논문은 직접적 baseline 가치가 명확할 때만 추가.
+
 ## 디렉토리 구조
 
 ```
@@ -61,7 +73,9 @@ docs/papers/
 
 새 요약 추가 시 본 표에 한 줄을 더한다. 추가 컬럼은 필요 시 자유.
 
-### Graph
+### Graph (data-as-graph reference)
+
+> ⚠️ **본 프로젝트 패러다임 (computation-as-graph) 과 다른 갈래** — baseline / 비교 reference 로만 활용.
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
@@ -76,7 +90,9 @@ docs/papers/
 |---|---|---|---|
 | _(아직 없음)_ | | | |
 
-### Hybrid (Graph + LM)
+### Hybrid (Graph + LM, data-as-graph reference)
+
+> ⚠️ **본 프로젝트 패러다임 (computation-as-graph) 과 다른 갈래** — baseline / 비교 reference 로만 활용. 단, LM 과 graph 의 통합 패턴 측면에서 design 참고 가치 있음.
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
@@ -84,6 +100,10 @@ docs/papers/
 | [hybrid/2021-graphformers-yang.md](hybrid/2021-graphformers-yang.md) | 2021 | GraphFormers | Transformer layer 마다 GNN aggregation nested 주입 |
 | [hybrid/2023-glem-zhao.md](hybrid/2023-glem-zhao.md) | 2023 | GLEM | LM ↔ GNN 을 EM 으로 번갈아 학습, 대규모 OGB SOTA |
 | [hybrid/2024-graphgpt-tang.md](hybrid/2024-graphgpt-tang.md) | 2024 | GraphGPT | Graph encoder 출력을 LLM token 으로 instruction tuning |
+
+### Computation-graph (예정)
+
+본 프로젝트 1순위 큐레이션 영역. 다음 PR 에서 MoE / Mixture of Depths / GHN 계열 5~7편이 추가될 예정.
 
 ## 작성 원칙
 
