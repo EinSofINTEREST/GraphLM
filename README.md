@@ -24,7 +24,7 @@ src/graphlm/    Python package (models, graph utils, training, eval)
 notebooks/      Jupyter experiment notebooks
 tests/          pytest tests (mirrors src/graphlm/)
 data/           experiment data (gitignored)
-docs/           CI docs + Korean documentation
+docs/           CI docs, Korean documentation, paper summaries (docs/papers/)
 .claude/        AI collaboration rules and infra
 ```
 
