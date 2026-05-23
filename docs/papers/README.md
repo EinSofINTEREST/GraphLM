@@ -65,7 +65,10 @@ docs/papers/
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
-| _(아직 없음)_ | | | |
+| [graph/2017-gcn-kipf.md](graph/2017-gcn-kipf.md) | 2017 | GCN | Spectral conv 1차 근사 — GNN 표준 baseline |
+| [graph/2017-graphsage-hamilton.md](graph/2017-graphsage-hamilton.md) | 2017 | GraphSAGE | 이웃 샘플링 기반 inductive GNN |
+| [graph/2018-gat-velickovic.md](graph/2018-gat-velickovic.md) | 2018 | GAT | 노드별 attention 으로 이웃 가중치 학습 |
+| [graph/2021-graphormer-ying.md](graph/2021-graphormer-ying.md) | 2021 | Graphormer | Transformer + 3종 structural bias, 분자 도메인 SOTA |
 
 ### Language Models
 
@@ -77,7 +80,10 @@ docs/papers/
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
-| _(아직 없음)_ | | | |
+| [hybrid/2020-graph-bert-zhang.md](hybrid/2020-graph-bert-zhang.md) | 2020 | Graph-BERT | 노드 subgraph 를 token 시퀀스로 변환, BERT 적용 |
+| [hybrid/2021-graphformers-yang.md](hybrid/2021-graphformers-yang.md) | 2021 | GraphFormers | Transformer layer 마다 GNN aggregation nested 주입 |
+| [hybrid/2023-glem-zhao.md](hybrid/2023-glem-zhao.md) | 2023 | GLEM | LM ↔ GNN 을 EM 으로 번갈아 학습, 대규모 OGB SOTA |
+| [hybrid/2024-graphgpt-tang.md](hybrid/2024-graphgpt-tang.md) | 2024 | GraphGPT | Graph encoder 출력을 LLM token 으로 instruction tuning |
 
 ## 작성 원칙
 
