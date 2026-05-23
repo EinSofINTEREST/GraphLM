@@ -4,18 +4,26 @@
 
 ### 프로젝트 성격
 
-GraphLM 은 **Transformer 내부 구조를 graph 로 바라보는** (computation-as-graph) 연구·실험 프로젝트입니다.
+GraphLM 은 **학습 중 Transformer 의 파라미터 수를 동적으로 조정** 하기 위해 모델 구조를 graph 로 다루는 연구·실험 프로젝트입니다.
 production 서비스가 아니라 reproducible research codebase 를 지향합니다.
 
 **핵심 패러다임 (필수 인지)**:
 
-- **노드** = Transformer 의 sub-component (FFN expert, attention head, layer block 등)
-- **Edge** = token routing path / layer skip 결정
-- **학습 대상** = token 의 routing 정책 / 동적 computation path
-- **대표 갈래** = MoE (Switch Transformer, Mixtral), Mixture of Depths, Graph HyperNetwork (GHN), NAS-Transformer
+- **목적** = training-time dynamic parameter count (학습 중 총 파라미터 수 변동)
+- **노드** = layer block / module / connection 등 추가·제거·재활성화 가능한 단위
+- **Edge** = module 간 데이터 흐름 / 활성화 mask
+- **학습 대상** = architecture growth operator / connection mask 진화 / module addition 정책
+- **대표 갈래** =
+  - **Growing Networks** (function-preserving expansion): Net2Net, bert2BERT, LiGO (ICLR 2023), MSG
+  - **Progressive Stacking**: Stacking BERT (ICML 2019)
+  - **Dynamic Sparse Training (DST)**: SET, RigL (ICML 2020)
+  - **Differentiable Architecture Search**: DARTS (ICLR 2019)
 
-이 패러다임은 **data-as-graph** (문서/분자/user 를 노드로 보는 GCN/GAT 류) 와 **다릅니다**.
-일반 GNN 류는 baseline reference 로만 다루며, `src/graphlm/models/` 의 1순위 구현은 computation-as-graph 모델입니다. 전체 정의는 [`CLAUDE.md`](../../CLAUDE.md#핵심-패러다임--computation-as-graph) 참조.
+본 프로젝트가 다루지 **않는** 두 방향:
+- **Data-as-graph** (문서/분자/user 를 노드로 보는 GCN/GAT/GraphSAGE 류) — `docs/papers/graph/`, `hybrid/` 의 8편은 baseline reference 만.
+- **Sparse activation with fixed total** (MoE / GShard / Switch / Mixtral / Mixture of Depths / Universal Transformer) — `docs/papers/computation-graph/` 의 6편은 baseline reference 만. 활성 파라미터만 동적이지 총 파라미터는 고정이라 본 프로젝트 목적과 다름.
+
+`src/graphlm/models/` 의 1순위 구현은 **growing Transformer** (예: LiGO 류 학습 가능 expansion operator, Progressive Stacking 의 layer 점진 추가) 입니다. 전체 정의는 [`CLAUDE.md`](../../CLAUDE.md#핵심-패러다임--training-time-dynamic-parameter-count) 참조.
 
 설계 우선순위:
 
