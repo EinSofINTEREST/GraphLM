@@ -5,8 +5,28 @@
 
 ## 프로젝트 한 줄 요약
 
-그래프(Graph) 구조와 언어 모델(Language Model)을 결합한 연구·실험 프로젝트.
+**Transformer 내부 구조를 graph 로 바라보는** 연구·실험 프로젝트.
+즉 Transformer 의 각 sub-component (FFN expert, attention head, layer block 등) 를 노드로 정의하고, token 임베딩이 그 노드 graph 위에서 routing / aggregation 되는 학습 framework 를 다룬다.
 주 언어는 Python, 실험은 Jupyter Notebook(`.ipynb`)으로 진행한다.
+
+## 핵심 패러다임 — Computation-as-Graph
+
+GraphLM 은 **데이터를 graph 로 보는** (data-as-graph) 방향이 아니다.
+
+| 구분 | Data-as-graph (NOT 이것) | **Computation-as-graph (THIS)** |
+|---|---|---|
+| 노드 | 문서 / 분자 / user 등 도메인 객체 | **FFN expert / attention head / layer block** |
+| Edge | 인용 / 결합 / 친구 관계 | **token routing path / layer skip 결정** |
+| 학습 대상 | 노드 임베딩 | **token 의 routing / 동적 computation path** |
+| 대표 갈래 | GCN, GAT, GraphSAGE, Graphormer | **MoE (Switch Transformer / Mixtral), Mixture of Depths, Graph HyperNetwork (GHN)** |
+
+이 패러다임 결정은 `~/.claude/projects/<...>/memory/project_paradigm.md` 에 영구 기록되어 있다 (2026-05-23 확정).
+
+**시사점**:
+- 신규 모델 / 실험은 computation-as-graph 우선. 일반 GCN/GAT 류는 baseline 비교용으로만.
+- 신규 논문 큐레이션은 MoE / 동적 routing / NAS-Transformer 계열 우선.
+- 기존 `docs/papers/graph/` `docs/papers/hybrid/` 의 8편은 **baseline reference 보존** (직접 채택 대상 아님).
+- 모호한 작업은 computation-as-graph 쪽으로 보수 분류.
 
 ## 빠른 참조 (목차)
 
