@@ -7,7 +7,7 @@ VENV_DIR ?= .venv
 KERNEL_NAME ?= graphlm
 KERNEL_DISPLAY ?= GraphLM (uv .venv)
 
-.PHONY: help venv install install-notebook kernel kernel-uninstall test test-verbose coverage coverage-html lint fmt nb-clean clean
+.PHONY: help venv install install-notebook kernel kernel-uninstall test test-verbose coverage coverage-html lint fmt nb-clean papers-lint clean
 
 help: ## 사용 가능한 타겟 표시
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -52,6 +52,9 @@ lint: ## ruff check + nbqa
 
 fmt: ## ruff format 적용
 	$(UV) run ruff format .
+
+papers-lint: ## docs/papers frontmatter 키 검증
+	$(UV) run python scripts/check-papers-frontmatter.py
 
 nb-clean: ## 노트북 output cell 정리 (nbstripout)
 	@if command -v nbstripout >/dev/null 2>&1; then \

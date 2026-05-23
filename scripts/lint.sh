@@ -42,3 +42,9 @@ if [[ -d notebooks ]] && command -v nbqa &>/dev/null; then
   echo "Running nbqa ruff notebooks/ ..."
   nbqa ruff notebooks/
 fi
+
+# 논문 요약 frontmatter 검증 (docs/papers/ 가 존재할 때)
+if [[ -d docs/papers ]]; then
+  echo "Running check-papers-frontmatter.py ..."
+  python3 scripts/check-papers-frontmatter.py
+fi
