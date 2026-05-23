@@ -64,5 +64,5 @@ cited_in: []     # 본 프로젝트 내 인용 위치 (노트북/모듈 경로).
 ## 참고 / 인용
 
 - 공식 코드: <repo URL — 있으면>
-- 관련 논문: <같이 읽으면 좋은 [[file-name]] 링크 또는 외부 URL>
+- 관련 논문: <같이 읽으면 좋은 표준 markdown 링크. 예: `[GCN](../graph/2017-gcn-kipf.md)` 또는 외부 URL>
 - 본 프로젝트 내 인용 위치: <notebook/모듈 경로 — frontmatter `cited_in` 과 동기화>
