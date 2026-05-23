@@ -30,7 +30,7 @@ cited_in: []
 ## 방법 요약
 
 - 데이터: Multilingual NMT (100개 언어쌍, M4 dataset, 25B sentence pairs).
-- 모델: Transformer encoder/decoder + every other FFN 을 MoE layer 로 교체. expert 수 N=128~2048. 총 600B parameters.
+- 모델: Transformer encoder/decoder + every other FFN 을 MoE layer 로 교체. expert 수 $N=128 \sim 2048$. 총 600B parameters.
 - 학습: Adafactor, label smoothing. TPU v3 pod (1024~2048 cores). expert 는 각 core 에 분산.
 - 핵심 흐름:
 
