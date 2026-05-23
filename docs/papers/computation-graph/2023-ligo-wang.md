@@ -35,7 +35,7 @@ cited_in: []
   2. LiGO operator $M_w, M_h$ 학습 — small dataset 의 reconstruction / distillation loss
   3. Operator 적용: $W_{\text{large}} = M_w W_{\text{small}} M_h^\top$
   4. Large 모델 추가 사전학습
-- 핵심 수식 (width expansion of linear layer):
+- 핵심 수식 (width expansion of linear layer, 원논문 §3.1):
 
 $$
 W_{\text{large}} \in \mathbb{R}^{d_{\text{out}}^L \times d_{\text{in}}^L} = M_w^{\text{out}} W_{\text{small}} (M_w^{\text{in}})^\top

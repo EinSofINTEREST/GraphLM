@@ -35,7 +35,7 @@ cited_in: []
   2. 상위 절반 (1.5 ≈ 2 layer) 을 복사해 6-layer 로 stack
   3. 다시 학습 진행 후 6 → 12 layer 로 확장
   4. 최종 단계는 표준 BERT 학습 schedule
-- 핵심 흐름:
+- 핵심 흐름 (원논문 §3.1):
 
 각 stacking step 에서:
 $$

@@ -57,7 +57,7 @@ cited_in: []
 
 - BERT-Base → BERT-Large 라는 **특정 pair** 검증 — 임의 크기 확장의 generality 미보고.
 - Width 확장의 weight 복제 + scaling 이 hyperparameter (어느 dim 을 복제할지) 가짐.
-- LayerNorm 의 statistics (running mean/var) 처리 명확화 부족 — 확장 후 BN-style stats 재계산 필요할 수 있음.
+- LayerNorm 자체는 running statistics 가 없지만, 확장 후 LayerNorm 의 affine 파라미터 ($\gamma, \beta$) 와 residual scale init 의 compatibility 처리에 대한 명확화 부족 — student 의 layer 별 normalization scale 이 teacher 와 다르면 function preservation 깨질 수 있음.
 - LLM-scale (1B+) 미검증 — 후속 LiGO / MSG 가 확장.
 
 ## 본 프로젝트 시사점

@@ -34,7 +34,7 @@ cited_in: []
   1. Teacher 학습 (수렴까지)
   2. Net2WiderNet / Net2DeeperNet 으로 확장
   3. Student 를 teacher 의 weight 로 init → 동일 data 로 추가 학습
-- 핵심 수식 (Net2WiderNet):
+- 핵심 수식 (Net2WiderNet, 원논문 §2.1 Eq. 1):
 
 $$
 \text{new layer}_{i+1}\text{ weight}: U^{(i+1)}_{k, j} =

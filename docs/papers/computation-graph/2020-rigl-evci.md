@@ -39,7 +39,7 @@ cited_in: []
      - drop: 작은 |weight| connection $\zeta_t$ fraction 제거
      - grow: 큰 |gradient| connection $\zeta_t$ fraction 재활성화
   4. $T_{\text{end}}$ 이후 mask 고정, 학습 계속
-- 핵심 흐름 (regrow step):
+- 핵심 흐름 (regrow step, 원논문 §3.3 Eq. 4):
 
 $$
 \text{ToGrow} = \arg\text{top-}k_{|i,j| \notin \mathcal{M}^{(t)}} \left| \frac{\partial \mathcal{L}}{\partial W_{i,j}} \right|

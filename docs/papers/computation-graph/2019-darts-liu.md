@@ -34,7 +34,7 @@ cited_in: []
   1. Bilevel: weight $w$ 학습 (train set) + architecture $\alpha$ 학습 (val set)
   2. 수렴 후 각 edge 마다 argmax $\alpha$ 로 single operation 선택 → final architecture
   3. 선택된 architecture 를 처음부터 재학습
-- 핵심 수식 (bilevel):
+- 핵심 수식 (bilevel, 원논문 §2.2 Eq. 3):
 
 $$
 \min_\alpha \mathcal{L}_{\text{val}}(w^*(\alpha), \alpha) \quad \text{s.t.}\quad w^*(\alpha) = \arg\min_w \mathcal{L}_{\text{train}}(w, \alpha)

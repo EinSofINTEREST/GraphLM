@@ -35,7 +35,7 @@ cited_in: []
   2. Standard SGD epoch
   3. Epoch 끝: 작은 weight $\zeta$ 비율 제거 + 동일 수 random regrow
   4. 반복
-- 핵심 흐름:
+- 핵심 흐름 (원논문 Methods, Algorithm 1):
 
 매 epoch $t$:
 $$

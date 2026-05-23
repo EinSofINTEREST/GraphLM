@@ -106,7 +106,7 @@ docs/papers/
 
 > ⚠️ **본 프로젝트의 1순위 (dynamic parameter count) 가 아닙니다** — 8편 중 6편 (MoE, GShard, Switch, Mixtral, MoD, Universal Transformer) 은 \"총 파라미터 고정 + 활성만 동적\" 인 sparse activation 류. AutoFormer / GHN-3 만 architecture-as-graph 측면에서 부분 정렬.
 >
-> 다음 batch (예정) 에서 진짜 1순위인 **Growing Networks / DST / DARTS / Progressive Stacking** 8편이 추가됩니다.
+> 진짜 1순위인 **Growing Networks / DST / DARTS / Progressive Stacking** 8편은 아래 \"Dynamic param count\" 섹션에 위치.
 
 #### Sparse activation 그룹 (활성만 동적, 총량 고정)
 

@@ -35,7 +35,7 @@ cited_in: []
   2. Mask 로 작은 effective architecture 만 활성화 (예: 4-layer / 256 hidden 으로 시작)
   3. Pretraining step 진행하며 schedule 에 따라 mask 의 일부 unmask
   4. Final step 에서 전체 unmask (= target large architecture)
-- 핵심 흐름 (depth unmask 예시):
+- 핵심 흐름 (depth unmask 예시, 원논문 §3 Eq. 2):
 
 각 layer 의 residual 출력에 masked scale 곱:
 $$
