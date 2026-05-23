@@ -5,28 +5,29 @@
 
 ## 프로젝트 한 줄 요약
 
-**Transformer 내부 구조를 graph 로 바라보는** 연구·실험 프로젝트.
-즉 Transformer 의 각 sub-component (FFN expert, attention head, layer block 등) 를 노드로 정의하고, token 임베딩이 그 노드 graph 위에서 routing / aggregation 되는 학습 framework 를 다룬다.
+**학습 중 Transformer 의 파라미터 수를 동적으로 조정** 하기 위해 모델 구조를 graph 로 다루는 연구·실험 프로젝트.
+graph 표현은 도구일 뿐, 진짜 목적은 *training-time dynamic parameter count*.
 주 언어는 Python, 실험은 Jupyter Notebook(`.ipynb`)으로 진행한다.
 
-## 핵심 패러다임 — Computation-as-Graph
+## 핵심 패러다임 — Training-time Dynamic Parameter Count
 
-GraphLM 은 **데이터를 graph 로 보는** (data-as-graph) 방향이 아니다.
+GraphLM 의 graph 는 **데이터를 graph 로 보는** (data-as-graph) 방향이 아니다.
+또한 같은 computation-as-graph 안에서도, **활성 파라미터 (active) 만 동적** 인 sparse activation 류 (MoE 등) 는 본 프로젝트 1순위가 아니다.
 
-| 구분 | Data-as-graph (NOT 이것) | **Computation-as-graph (THIS)** |
-|---|---|---|
-| 노드 | 문서 / 분자 / user 등 도메인 객체 | **FFN expert / attention head / layer block** |
-| Edge | 인용 / 결합 / 친구 관계 | **token routing path / layer skip 결정** |
-| 학습 대상 | 노드 임베딩 | **token 의 routing / 동적 computation path** |
-| 대표 갈래 | GCN, GAT, GraphSAGE, Graphormer | **MoE (Switch Transformer / Mixtral), Mixture of Depths, Graph HyperNetwork (GHN), NAS-Transformer** |
+| 구분 | Data-as-graph (NOT) | Sparse activation (NOT 1순위 — reference 만) | **Dynamic param count (THIS)** |
+|---|---|---|---|
+| 노드 정의 | 도메인 객체 (문서/분자/user) | FFN expert / attention head | **layer block / module 자체 (학습 중 추가·제거 가능 단위)** |
+| 학습 중 총 파라미터 수 | 고정 | **고정** (활성만 변동) | **변동 (성장 / 축소 / sparse mask 진화)** |
+| 학습 대상 | 노드 임베딩 | token → expert routing 정책 | **architecture growth operator / connection mask / module addition 정책** |
+| 대표 갈래 | GCN, GAT, GraphSAGE, Graphormer | MoE, GShard, Switch, Mixtral, Mixture of Depths, Universal Transformer | **Net2Net, bert2BERT, LiGO, MSG (Growing) / SET, RigL (DST) / DARTS (NAS during training) / Progressive Stacking** |
 
-이 패러다임 결정은 `~/.claude/projects/<...>/memory/project_paradigm.md` 에 영구 기록되어 있다 (2026-05-23 확정).
+이 패러다임 정의는 `~/.claude/projects/<...>/memory/project_paradigm.md` 에 영구 기록되어 있다 (2026-05-23 재정의 확정).
 
 **시사점**:
-- 신규 모델 / 실험은 computation-as-graph 우선. 일반 GCN/GAT 류는 baseline 비교용으로만.
-- 신규 논문 큐레이션은 MoE / 동적 routing / NAS-Transformer 계열 우선.
-- 기존 `docs/papers/graph/` `docs/papers/hybrid/` 의 8편은 **baseline reference 보존** (직접 채택 대상 아님).
-- 모호한 작업은 computation-as-graph 쪽으로 보수 분류.
+- 신규 모델 / 실험은 **Growing / DST / DARTS** 우선. MoE 류는 baseline 비교용 reference.
+- 신규 논문 큐레이션은 Net2Net / bert2BERT / LiGO / MSG / SET / RigL / DARTS / Stacking 계열 우선.
+- 기존 `docs/papers/graph/` `docs/papers/hybrid/` 의 8편 + `docs/papers/computation-graph/` 의 8편 (sparse activation 위주) 은 **baseline reference 보존** (직접 채택 대상 아님).
+- 모호한 작업은 dynamic count 쪽으로 보수 분류.
 
 ## 빠른 참조 (목차)
 
