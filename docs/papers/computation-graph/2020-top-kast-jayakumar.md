@@ -21,7 +21,7 @@ cited_in: []
 
 ## 핵심 기여
 
-- **Always-sparse forward**: 각 step 마다 |weight| top-$k$ 만 사용 (k = $\lfloor \text{total} \cdot (1-s) \rfloor$, $s$ = sparsity).
+- **Always-sparse forward**: 각 step 마다 $|W|$ top-$k$ 만 사용 ($k = \lfloor \text{total} \cdot (1-s) \rfloor$, $s$ = sparsity) (원논문 §2).
 - **Wider gradient set**: forward 는 top-$k$, gradient 는 top-$k'$ ($k' > k$) 의 더 큰 \"backward set\" → 비활성 weight 에도 gradient 흘려 \"미래의 활성화\" 신호 제공.
 - **Per-step mask update**: RigL 의 epoch-level update 보다 fine-grained.
 - **Transformer-XL / GPT-2 적용**: WikiText-103 / WebText 에서 90% sparsity 에서 dense 동등 perplexity 보고.
@@ -36,7 +36,7 @@ cited_in: []
      - Forward: 현재 |weight| top-$k$ active set 만 사용
      - Backward: 더 큰 top-$k'$ set 에 gradient 흘림 (비활성 weight 도 update)
      - 마스크 자동 update — 다음 step 의 top-$k$ 가 자연스럽게 변동
-- 핵심 흐름:
+- 핵심 흐름 (원논문 §2, forward/backward mask):
 
 각 weight matrix $W$ 의 active mask:
 $$

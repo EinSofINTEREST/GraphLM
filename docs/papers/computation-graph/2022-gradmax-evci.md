@@ -36,7 +36,7 @@ cited_in: []
      - Function-preserving constraint 하에서 새 column $u$ 의 init: $u^* = \arg\max_u \|\nabla \mathcal{L} \cdot u\|^2$
      - SVD 의 top singular vector 로 closed-form 계산
   3. 새 weight 와 함께 학습 계속
-- 핵심 흐름:
+- 핵심 흐름 (원논문 §3, gradient-maximizing init):
 
 새 weight $u$ 의 optimal init:
 $$

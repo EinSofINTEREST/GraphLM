@@ -37,7 +37,7 @@ cited_in: []
   2. $\gamma$ 가 threshold 이하인 channel/layer 제거 (shrink)
   3. 남은 architecture 의 width 를 multiplier $\alpha$ 로 grow — budget 안 채울 때까지
   4. 결과 architecture 로 standard 재학습 (또는 fine-tune)
-- 핵심 흐름:
+- 핵심 흐름 (원논문 §3, group lasso 식):
 
 각 BN layer 의 group lasso:
 $$

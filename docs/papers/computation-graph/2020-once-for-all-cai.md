@@ -17,7 +17,7 @@ cited_in: []
 
 - 단일 supernet 학습 한 번으로 다양한 size 의 sub-network 들을 **직접 추출 가능** — 별도 retrain 없이 deployment 시점에서 device 별 (latency / memory) 최적 architecture 선택.
 - 핵심: **progressive shrinking** training schedule — depth → kernel → width → resolution 순으로 elastic dim 확장.
-- 본 프로젝트 관점: **\"학습 중 dynamic param count\" 의 dual\"** — 학습 중에는 다양한 size 가 supernet 안에 공존, 학습 후에는 어느 size 든 추출 가능. \"성장\" 이 아니라 \"이미 다양\".
+- 본 프로젝트 관점: **\"학습 중 dynamic param count\" 의 dual** — 학습 중에는 다양한 size 가 supernet 안에 공존, 학습 후에는 어느 size 든 추출 가능. \"성장\" 이 아니라 \"이미 다양\".
 
 ## 핵심 기여
 
@@ -40,7 +40,7 @@ cited_in: []
   2. Progressive shrinking: stage 마다 한 elastic dim 추가 → 그 dim 의 모든 변형 sample
   3. Distillation: 작은 sub-network 가 큰 sub-network 의 output 으로 학습
   4. 약 1200 GPU-hour (Tesla V100, 한 번에 supernet 학습)
-- 핵심 아이디어 (deployment):
+- 핵심 아이디어 (deployment, 원논문 §3.4):
 
 각 target device 마다:
 $$
