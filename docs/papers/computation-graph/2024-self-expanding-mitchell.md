@@ -36,14 +36,16 @@ cited_in: []
   3. Periodic check: rate of natural gradient $\partial \mathcal{L} / \partial F$ ($F$ = Fisher information) 계산
   4. Rate 가 threshold 이하 → growth (axis 선택도 동일 metric 으로)
   5. 새 capacity 와 함께 학습 계속
-- 핵심 흐름:
+- 핵심 흐름 (본 요약의 개념적 단순화, 원논문 §3 의 natural gradient + Fisher information 정식화 참조):
 
-자연 gradient 의 rate-of-change criterion:
+자연 gradient 의 rate-of-change criterion (개념 표기):
 $$
 \text{trigger\_grow} = \frac{\partial \mathcal{L}}{\partial F} < \tau_{\text{natural}}
 $$
 
-(저자의 명시: $\tau_{\text{natural}}$ 은 unit-less, dataset-independent 한다고 주장.)
+여기서 $F$ 는 Fisher information, 분모는 \"capacity 증가분에 대한 loss 변화율\" 의 개념. 정확한 수식은 논문 §3 의 capacity expansion criterion 참조.
+
+(저자의 명시: $\tau_{\text{natural}}$ 은 unit-less, dataset-independent 하다고 주장.)
 
 ## 실험 / 결과
 
