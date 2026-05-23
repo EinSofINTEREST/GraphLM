@@ -66,9 +66,7 @@ def is_placeholder(value: str) -> bool:
     if not stripped:
         return True
     # `<...>` / `<YYYY>` 같은 placeholder
-    if stripped.startswith("<") and stripped.endswith(">"):
-        return True
-    return False
+    return stripped.startswith("<") and stripped.endswith(">")
 
 
 def check_file(path: Path) -> list[str]:
@@ -83,15 +81,11 @@ def check_file(path: Path) -> list[str]:
         if required not in keys:
             errors.append(f"{path}: 필수 키 누락 — `{required}`")
         elif is_placeholder(keys[required]):
-            errors.append(
-                f"{path}: 키 `{required}` 가 비어있거나 placeholder ({keys[required]!r})"
-            )
+            errors.append(f"{path}: 키 `{required}` 가 비어있거나 placeholder ({keys[required]!r})")
 
     status_val = keys.get("status", "").strip().strip('"').strip("'")
     if status_val and status_val not in ALLOWED_STATUS:
-        errors.append(
-            f"{path}: status 값 {status_val!r} 허용 외 — {ALLOWED_STATUS} 중 택1"
-        )
+        errors.append(f"{path}: status 값 {status_val!r} 허용 외 — {ALLOWED_STATUS} 중 택1")
 
     return errors
 
@@ -101,11 +95,7 @@ def collect_files(args: list[str]) -> list[Path]:
         return [Path(a) for a in args]
     if not PAPERS_DIR.exists():
         return []
-    return [
-        p
-        for p in sorted(PAPERS_DIR.rglob("*.md"))
-        if p.name not in EXCLUDED_FILES
-    ]
+    return [p for p in sorted(PAPERS_DIR.rglob("*.md")) if p.name not in EXCLUDED_FILES]
 
 
 def main(argv: list[str]) -> int:
