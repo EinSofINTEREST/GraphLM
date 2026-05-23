@@ -2,11 +2,11 @@
 
 **[한국어](docs/ko/README.md)** | English (TBD)
 
-> Research codebase treating the **internal structure of Transformers as a graph** — each FFN expert, attention head, or layer block is a node; tokens are routed and aggregated across them. (computation-as-graph, **not** data-as-graph.)
+> Research codebase exploring **training-time dynamic parameter count for Transformers** — graph representation is the tool, dynamic growth / pruning / architecture search during training is the goal. (Not sparse activation like MoE: those keep total params fixed.)
 
 Python 3.11+, Jupyter notebooks for experiments, package code in `src/graphlm/`.
 
-See [CLAUDE.md](CLAUDE.md#핵심-패러다임--computation-as-graph) for the full paradigm definition.
+See [CLAUDE.md](CLAUDE.md#핵심-패러다임--training-time-dynamic-parameter-count) for the full paradigm definition.
 
 ## Quick start
 
