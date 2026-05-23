@@ -62,5 +62,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/tkipf/gcn> (TensorFlow), PyTorch 포트 다수
-- 관련 논문: [[2017-graphsage-hamilton]] (inductive 확장), [[2018-gat-velickovic]] (attention 도입)
+- 관련 논문: [GraphSAGE](2017-graphsage-hamilton.md) (inductive 확장), [GAT](2018-gat-velickovic.md) (attention 도입)
 - 본 프로젝트 내 인용 위치: 추후 `notebooks/10-experiments/` 의 baseline 노트북에서

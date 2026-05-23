@@ -61,5 +61,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/HKUDS/GraphGPT>
-- 관련 논문: [[2023-glem-zhao]] (LM-GNN co-training 의 EM 방식), [[2021-graphformers-yang]] (BERT 시대 nested hybrid), [[2021-graphormer-ying]] (graph encoder 의 표준 후보)
+- 관련 논문: [GLEM](2023-glem-zhao.md) (LM-GNN co-training 의 EM 방식), [GraphFormers](2021-graphformers-yang.md) (BERT 시대 nested hybrid), [Graphormer](../graph/2021-graphormer-ying.md) (graph encoder 의 표준 후보)
 - 본 프로젝트 내 인용 위치: 추후 LLM + graph token 실험 노트북에서

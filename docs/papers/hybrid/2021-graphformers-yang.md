@@ -62,5 +62,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/microsoft/GraphFormers> (PyTorch)
-- 관련 논문: [[2020-graph-bert-zhang]] (graph-only Transformer), [[2021-graphormer-ying]] (structural bias 접근), [[2023-glem-zhao]] (EM 기반 단순 co-training)
+- 관련 논문: [Graph-BERT](2020-graph-bert-zhang.md) (graph-only Transformer), [Graphormer](../graph/2021-graphormer-ying.md) (structural bias 접근), [GLEM](2023-glem-zhao.md) (EM 기반 단순 co-training)
 - 본 프로젝트 내 인용 위치: 추후 text-attributed graph hybrid 실험 노트북에서

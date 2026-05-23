@@ -64,5 +64,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/PetarV-/GAT> (TensorFlow), PyG `GATConv` / `GATv2Conv` 표준.
-- 관련 논문: [[2017-gcn-kipf]] (fixed-weight predecessor), [[2017-graphsage-hamilton]] (다른 inductive 접근), [[2021-graphormer-ying]] (attention 확장)
+- 관련 논문: [GCN](2017-gcn-kipf.md) (fixed-weight predecessor), [GraphSAGE](2017-graphsage-hamilton.md) (다른 inductive 접근), [Graphormer](2021-graphormer-ying.md) (attention 확장)
 - 본 프로젝트 내 인용 위치: 추후 attention-based baseline 노트북에서

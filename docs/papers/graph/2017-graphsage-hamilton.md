@@ -63,5 +63,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/williamleif/GraphSAGE> (TensorFlow), PyG / DGL 구현 표준.
-- 관련 논문: [[2017-gcn-kipf]] (transductive baseline), [[2018-gat-velickovic]] (attention 도입)
+- 관련 논문: [GCN](2017-gcn-kipf.md) (transductive baseline), [GAT](2018-gat-velickovic.md) (attention 도입)
 - 본 프로젝트 내 인용 위치: 추후 inductive baseline 노트북에서

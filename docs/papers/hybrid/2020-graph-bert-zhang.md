@@ -56,5 +56,5 @@ cited_in: []
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/jwzhanggy/Graph-Bert> (PyTorch)
-- 관련 논문: [[2021-graphormer-ying]] (더 강력한 Graph Transformer), [[2021-graphformers-yang]] (GNN + Transformer nested), [[2023-glem-zhao]] (text-attributed graph 의 LM 활용)
+- 관련 논문: [Graphormer](../graph/2021-graphormer-ying.md) (더 강력한 Graph Transformer), [GraphFormers](2021-graphformers-yang.md) (GNN + Transformer nested), [GLEM](2023-glem-zhao.md) (text-attributed graph 의 LM 활용)
 - 본 프로젝트 내 인용 위치: 추후 graph-as-sequence 사전학습 노트북에서

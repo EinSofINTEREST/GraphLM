@@ -61,5 +61,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/AndyJZhao/GLEM> (PyTorch)
-- 관련 논문: [[2021-graphformers-yang]] (end-to-end nested 대비군), [[2020-graph-bert-zhang]] (graph-side Transformer), [[2024-graphgpt-tang]] (LLM 시대로의 확장)
+- 관련 논문: [GraphFormers](2021-graphformers-yang.md) (end-to-end nested 대비군), [Graph-BERT](2020-graph-bert-zhang.md) (graph-side Transformer), [GraphGPT](2024-graphgpt-tang.md) (LLM 시대로의 확장)
 - 본 프로젝트 내 인용 위치: 추후 EM-based hybrid training 노트북에서

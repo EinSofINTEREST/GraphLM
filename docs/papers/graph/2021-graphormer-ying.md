@@ -63,5 +63,5 @@ $$
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/microsoft/Graphormer>
-- 관련 논문: [[2018-gat-velickovic]] (attention 도입 선례), [[2020-graph-bert-zhang]] (다른 Graph Transformer 방향), [[2021-graphformers-yang]] (Graph + LM Transformer 결합)
+- 관련 논문: [GAT](2018-gat-velickovic.md) (attention 도입 선례), [Graph-BERT](../hybrid/2020-graph-bert-zhang.md) (다른 Graph Transformer 방향), [GraphFormers](../hybrid/2021-graphformers-yang.md) (Graph + LM Transformer 결합)
 - 본 프로젝트 내 인용 위치: 추후 attention-bias 실험 노트북에서
