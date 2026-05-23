@@ -76,7 +76,7 @@ docs/papers/
 
 ### Graph (data-as-graph reference)
 
-> ⚠️ **본 프로젝트 패러다임 (computation-as-graph) 과 다른 갈래** — baseline / 비교 reference 로만 활용.
+> ⚠️ **본 프로젝트 패러다임 (training-time dynamic parameter count) 과 다른 갈래** — baseline / 비교 reference 로만 활용.
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
@@ -93,7 +93,7 @@ docs/papers/
 
 ### Hybrid (Graph + LM, data-as-graph reference)
 
-> ⚠️ **본 프로젝트 패러다임 (computation-as-graph) 과 다른 갈래** — baseline / 비교 reference 로만 활용. 단, LM 과 graph 의 통합 패턴 측면에서 design 참고 가치 있음.
+> ⚠️ **본 프로젝트 패러다임 (training-time dynamic parameter count) 과 다른 갈래** — baseline / 비교 reference 로만 활용. 단, LM 과 graph 의 통합 패턴 측면에서 design 참고 가치 있음.
 
 | 파일 | 연도 | 모델/방법 | 한줄 요약 |
 |---|---|---|---|
