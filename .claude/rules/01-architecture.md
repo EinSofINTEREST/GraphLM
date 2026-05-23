@@ -4,8 +4,18 @@
 
 ### 프로젝트 성격
 
-GraphLM 은 **그래프 구조 + 언어 모델 결합 연구·실험 프로젝트** 입니다.
+GraphLM 은 **Transformer 내부 구조를 graph 로 바라보는** (computation-as-graph) 연구·실험 프로젝트입니다.
 production 서비스가 아니라 reproducible research codebase 를 지향합니다.
+
+**핵심 패러다임 (필수 인지)**:
+
+- **노드** = Transformer 의 sub-component (FFN expert, attention head, layer block 등)
+- **Edge** = token routing path / layer skip 결정
+- **학습 대상** = token 의 routing 정책 / 동적 computation path
+- **대표 갈래** = MoE (Switch Transformer, Mixtral), Mixture of Depths, Graph HyperNetwork (GHN), NAS-Transformer
+
+이 패러다임은 **data-as-graph** (문서/분자/user 를 노드로 보는 GCN/GAT 류) 와 **다릅니다**.
+일반 GNN 류는 baseline reference 로만 다루며, `src/graphlm/models/` 의 1순위 구현은 computation-as-graph 모델입니다. 전체 정의는 [`CLAUDE.md`](../../CLAUDE.md#핵심-패러다임--computation-as-graph) 참조.
 
 설계 우선순위:
 
