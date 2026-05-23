@@ -12,7 +12,7 @@ GraphLM 의 핵심 패러다임은 **computation-as-graph** (Transformer 내부 
 
 | 카테고리 | 패러다임 정렬 | 본 프로젝트에서의 위상 |
 |---|---|---|
-| `graph/`, `hybrid/` (기존 8편) | **data-as-graph** | **Baseline reference 보존** — 직접 채택 대상 아님. \"어떤 방법이 이미 있는가\" 의 비교군. |
+| `graph/`, `hybrid/` (기존 8편) | **data-as-graph** | **Baseline reference 보존** — 직접 채택 대상 아님. "어떤 방법이 이미 있는가" 의 비교군. |
 | `computation-graph/` (예정, 다음 PR) | **computation-as-graph** | **1순위 큐레이션** — MoE / Mixture of Depths / GHN / NAS-Transformer 등 |
 | `lm/` (미사용) | LM 일반 | 필요 시 활성화 |
 
