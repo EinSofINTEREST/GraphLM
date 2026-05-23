@@ -99,7 +99,6 @@ markers = [
 source = ["src/graphlm"]
 omit = [
     "*/tests/*",
-    "*/__init__.py",
 ]
 
 [tool.coverage.report]

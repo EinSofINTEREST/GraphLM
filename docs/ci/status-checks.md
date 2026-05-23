@@ -18,7 +18,7 @@ GitHub Ruleset과 PR 템플릿은 모두 이 문서의 이름과 **토씨 단위
 | `Format Check` | `ci-quality.yml` / `format` | `ruff format --check .` | Yes |
 | `Build` | `ci-quality.yml` / `build` | `pip install -e ".[dev]"` + `import graphlm` | Yes |
 | `Test` | `ci-quality.yml` / `test` | `pytest -m "not slow and not gpu and not network" --cov --cov-fail-under=70` | Yes |
-| `Lint` | `ci-quality.yml` / `lint` | `ruff check .` + `nbqa ruff notebooks/` | Yes |
+| `Lint` | `ci-quality.yml` / `lint` | `ruff check .` + `nbqa ruff notebooks/` + `scripts/check-papers-frontmatter.py` | Yes |
 | `Commit Lint` | `ci-convention.yml` / `commit-lint` | 커밋 메시지 `[카테고리]:` 포맷 강제 | Yes |
 | `PR Title Lint` | `ci-convention.yml` / `pr-title-lint` | PR 타이틀 `[카테고리#이슈번호] 제목` 엄격 강제 (PR only) | Yes |
 | `Linked Issue Check` | `ci-convention.yml` / `linked-issue` | PR 에 머지 시 close 될 이슈가 1개 이상 연결되어 있는지 검증 (PR only) | Yes |

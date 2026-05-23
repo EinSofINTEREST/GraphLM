@@ -134,3 +134,11 @@ jobs:
           else
             echo "notebooks/ 디렉토리가 없어 nbqa skip" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Check docs/papers frontmatter
+        run: |
+          if [ -d docs/papers ]; then
+            python scripts/check-papers-frontmatter.py
+          else
+            echo "docs/papers/ 디렉토리가 없어 papers-lint skip" >> "$GITHUB_STEP_SUMMARY"
+          fi

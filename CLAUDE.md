@@ -21,6 +21,7 @@
 | **AI 작업 진행** | `.claude/rules/07-workflow.md` | **자율 진행 / commit-per-TODO / PR 자동 / 권한 최소화** |
 | CI/머지 게이트 | `docs/ci/conventions.md` | Required checks, CODEOWNERS, Ruleset |
 | Status check 이름 | `docs/ci/status-checks.md` | 단일 소스, 변경 절차 |
+| 논문/레퍼런스 요약 | `docs/papers/README.md` | 디렉토리 구조, 파일명/frontmatter 규칙, 추가 절차 |
 
 ## 반드시 지킬 규칙 (CI가 강제함)
 
@@ -31,7 +32,7 @@
 3. **포맷**: `ruff format .` 로 포맷 정리 후 커밋.
 4. **임포트 가능 여부**: 패키지가 import 가능한 상태 유지 (`python -c "import graphlm"` 통과).
 5. **테스트**: `pytest` 통과. 커버리지 70% 이상.
-6. **린트**: `ruff check .` + `nbqa ruff notebooks/` 통과.
+6. **린트**: `ruff check .` + `nbqa ruff notebooks/` + `scripts/check-papers-frontmatter.py` 통과.
 
 ## 빌드/테스트 명령어
 
@@ -40,9 +41,10 @@ make install-notebook  # uv 로 .venv + dev/notebook 의존성 설치
 make kernel            # .venv 를 Jupyter 커널로 등록 ("GraphLM (uv .venv)")
 make test              # pytest 실행 (uv run)
 make coverage          # 커버리지 리포트
-make lint              # ruff + nbqa (notebooks 포함)
+make lint              # ruff + nbqa (notebooks 포함) + docs/papers frontmatter
 make fmt               # ruff format
 make nb-clean          # 노트북 출력 셀 정리 (nbstripout)
+make papers-lint       # docs/papers frontmatter 단독 검증
 ```
 
 모든 명령은 내부적으로 `uv run` 으로 `.venv` 를 사용합니다.
@@ -56,6 +58,7 @@ notebooks/      → Jupyter 실험 노트북 (.ipynb)
 tests/          → pytest 테스트 (src/graphlm/ 미러링)
 data/           → 실험 데이터 (gitignore — 큰 파일은 별도 관리)
 docs/ci/        → CI 운영 규약, status check 단일 소스
+docs/papers/    → 논문/레퍼런스 요약 (md, frontmatter 규칙 + 주제별 폴더)
 .claude/rules/  → 상세 개발 규칙 (위 목차 참조)
 ```
 
