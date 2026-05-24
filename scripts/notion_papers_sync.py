@@ -289,7 +289,25 @@ def md_to_blocks(md: str) -> list[dict]:
                     "code",
                     rich_text=[rt(_truncate("\n".join(code_lines)))],
                     language=lang
-                    if lang in {"python", "shell", "json", "yaml", "markdown"}
+                    if lang
+                    in {
+                        "python",
+                        "shell",
+                        "json",
+                        "yaml",
+                        "markdown",
+                        "javascript",
+                        "typescript",
+                        "java",
+                        "c",
+                        "cpp",
+                        "rust",
+                        "go",
+                        "sql",
+                        "html",
+                        "css",
+                        "diff",
+                    }
                     else "plain text",
                 )
             )
@@ -441,6 +459,8 @@ def paper_to_props(path: Path, fm: dict, github_blob_base: str) -> dict:
 
     short_id = determine_short_id(path)
     year_raw = fm.get("year", "")
+    if isinstance(year_raw, list):
+        year_raw = year_raw[0] if year_raw else ""
     try:
         year = int(str(year_raw))
     except (TypeError, ValueError):
@@ -521,7 +541,6 @@ def paper_to_body_blocks(path: Path, fm: dict, body: str, github_blob_base: str)
     authors = str(authors).strip('"').strip("'")
 
     venue = str(fm.get("venue", "")).strip('"').strip("'")
-    str(fm.get("year", "")).strip('"').strip("'")
 
     blocks.append(
         _block(
