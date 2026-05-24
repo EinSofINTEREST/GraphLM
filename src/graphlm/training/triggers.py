@@ -40,10 +40,18 @@ class PlateauTrigger:
     ):
         if window < 2:
             raise ValueError(f"window must be >= 2, got {window}")
+        resolved_min_history = min_history if min_history is not None else window
+        # min_history > window 면 deque 가 window 에 capped 되어 buffer 가 절대 min_history 도달 X
+        # → 영구 비활성. 명시적 ValueError 로 차단.
+        if resolved_min_history > window:
+            raise ValueError(
+                f"min_history ({resolved_min_history}) must be <= window ({window}); "
+                f"otherwise the buffer can never reach min_history and the trigger is permanently disabled"
+            )
         self.window = window
         self.epsilon = epsilon
         self.cooldown = cooldown
-        self.min_history = min_history if min_history is not None else window
+        self.min_history = resolved_min_history
         self._buf: deque[float] = deque(maxlen=window)
         self._sum: float = 0.0
         self._sum_sq: float = 0.0

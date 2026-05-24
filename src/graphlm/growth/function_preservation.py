@@ -11,9 +11,11 @@ from collections.abc import Callable
 import torch
 from torch import Tensor
 
+# Re-export from utils.exceptions so existing imports keep working while
+# inheritance is unified under GraphLMError (per .claude/rules/04-error-handling.md).
+from graphlm.utils.exceptions import FunctionPreservationError
 
-class FunctionPreservationError(RuntimeError):
-    """Raised when a growth operation violates the function-preservation invariant."""
+__all__ = ["FunctionPreservationError", "assert_function_preserving"]
 
 
 def assert_function_preserving(

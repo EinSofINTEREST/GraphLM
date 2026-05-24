@@ -30,6 +30,7 @@ from graphlm.utils.seed import set_seed
 
 
 def main(argv: list[str]) -> int:
+    """Entry point — parse CLI args, load data, train, and save CSV outputs."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-steps", type=int, default=3000)
     ap.add_argument("--batch-size", type=int, default=16)

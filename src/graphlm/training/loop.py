@@ -76,6 +76,53 @@ def _register_new_params(
     )
 
 
+def _train_step(
+    model: GrowingDecoder,
+    optimizer: torch.optim.Optimizer,
+    input_ids: Tensor,
+    target_ids: Tensor,
+) -> float:
+    """Run one forward + backward + optimizer step, return scalar loss."""
+    logits = model(input_ids)  # [B, T, V]
+    loss = torch.nn.functional.cross_entropy(
+        logits.reshape(-1, logits.size(-1)), target_ids.reshape(-1)
+    )
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+    return float(loss.item())
+
+
+def _maybe_grow(
+    model: GrowingDecoder,
+    optimizer: torch.optim.Optimizer,
+    trigger: PlateauTrigger,
+    loss_val: float,
+    cfg: TrainConfig,
+    step: int,
+) -> int | None:
+    """If plateau detected and not at max_layers, grow + register new params.
+
+    Returns:
+        Index of newly added block, or None if no growth happened this step.
+    """
+    if not (trigger.update(loss_val) and model.n_layers < cfg.max_layers):
+        return None
+    new_idx = add_layer_function_preserving(model)
+    new_params = list(model.blocks[new_idx].parameters())
+    _register_new_params(optimizer, new_params, cfg)
+    logger.info(
+        "grow",
+        extra={
+            "step": step,
+            "n_layers": model.n_layers,
+            "new_block_idx": new_idx,
+            "alpha": 0.0,
+        },
+    )
+    return new_idx
+
+
 def train(
     model: GrowingDecoder,
     data_iter: Iterator[tuple[Tensor, Tensor]],
@@ -108,48 +155,25 @@ def train(
         try:
             input_ids, target_ids = next(data_iter)
         except StopIteration:
-            logger.info("data iterator exhausted at step %d", step)
+            logger.info("data_exhausted", extra={"step": step})
             break
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
-
-        logits = model(input_ids)  # [B, T, V]
-        loss = torch.nn.functional.cross_entropy(
-            logits.reshape(-1, logits.size(-1)),
-            target_ids.reshape(-1),
-        )
-
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-
-        loss_val = float(loss.item())
+        loss_val = _train_step(model, optimizer, input_ids.to(device), target_ids.to(device))
         result.losses.append(loss_val)
 
-        # 학습 진행 로그
         if step % cfg.log_every == 0:
             logger.info(
-                "step=%d loss=%.4f n_layers=%d n_params=%d",
-                step,
-                loss_val,
-                model.n_layers,
-                model.n_params,
+                "train_step",
+                extra={
+                    "step": step,
+                    "loss": loss_val,
+                    "n_layers": model.n_layers,
+                    "n_params": model.n_params,
+                },
             )
 
-        # Trigger check
-        if trigger.update(loss_val) and model.n_layers < cfg.max_layers:
-            new_idx = add_layer_function_preserving(model)
-            # 기존 param 의 momentum 유지를 위해 새 param 만 add_param_group
-            new_params = list(model.blocks[new_idx].parameters())
-            _register_new_params(optimizer, new_params, cfg)
+        if _maybe_grow(model, optimizer, trigger, loss_val, cfg, step) is not None:
             result.grow_events.append((step, model.n_layers))
-            logger.info(
-                "🌱 GROW @ step=%d → n_layers=%d (new block idx=%d, alpha=0)",
-                step,
-                model.n_layers,
-                new_idx,
-            )
 
     result.final_n_layers = model.n_layers
     result.final_n_params = model.n_params

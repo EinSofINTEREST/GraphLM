@@ -48,9 +48,11 @@ class CharTokenizer:
         return len(self.itos)
 
     def encode(self, s: str) -> list[int]:
+        """Encode a string into a list of token ids (unknown chars are silently dropped)."""
         return [self.stoi[c] for c in s if c in self.stoi]
 
     def decode(self, ids: list[int]) -> str:
+        """Decode a list of token ids back to a string (out-of-range ids are dropped)."""
         return "".join(self.itos[i] for i in ids if 0 <= i < self.vocab_size)
 
 
