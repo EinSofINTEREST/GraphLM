@@ -29,8 +29,8 @@ cited_in: []
 - 데이터/task: image reconstruction, omniglot one-shot learning, RL maze.
 - 모델:
   - Recurrent network with plastic weights
-  - 각 connection: $w_{ij} + \alpha_{ij} \cdot \text{Hebb}_{ij}(t)$
-  - $\text{Hebb}_{ij}(t+1) = \eta \cdot x_i(t) \cdot y_j(t) + (1-\eta) \cdot \text{Hebb}_{ij}(t)$ (Hebbian trace)
+  - 각 connection: $w_{ij} + \alpha_{ij} \cdot \text{Hebb}_{ij}(t)$ (원논문 §2 Eq. 1)
+  - $\text{Hebb}_{ij}(t+1) = \eta \cdot x_i(t) \cdot y_j(t) + (1-\eta) \cdot \text{Hebb}_{ij}(t)$ (Hebbian trace, 원논문 §2 Eq. 2)
 - 학습:
   - Outer (meta): backprop 으로 $w$, $\alpha$, $\eta$ 학습
   - Inner (episode): $\text{Hebb}$ 만 빠르게 변동

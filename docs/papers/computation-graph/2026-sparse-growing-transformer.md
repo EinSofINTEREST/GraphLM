@@ -1,6 +1,6 @@
 ---
 title: "Sparse Growing Transformer: Training-Time Sparse Depth Allocation via Progressive Attention Looping"
-authors: "(arXiv preprint; 저자 정보 추후 확정)"
+authors: "Chen, Y., Chen, Y., Yang, Y., Shang, J., Zhang, Z., Zhang, Z., Nie, S., Wang, S., Sun, Y., Wu, H., Wang, H., & Liu, T."
 year: 2026
 venue: "arXiv preprint"
 url: "https://arxiv.org/abs/2603.23998"

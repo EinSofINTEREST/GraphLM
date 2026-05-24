@@ -1,6 +1,6 @@
 ---
 title: "Self-Motivated Growing Neural Network for Adaptive Architecture via Local Structural Plasticity"
-authors: "(arXiv preprint; 저자 정보 추후 확정)"
+authors: "Jia, Y., & Zhou, C."
 year: 2025
 venue: "arXiv preprint (2025-12)"
 url: "https://arxiv.org/abs/2512.12713"

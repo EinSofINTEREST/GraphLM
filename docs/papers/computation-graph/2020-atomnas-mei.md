@@ -20,7 +20,7 @@ cited_in: []
 
 ## 핵심 기여
 
-- **Atomic block 정의** — 한 layer 안의 individual channel + kernel choice (e.g. 3×3 / 5×5 / 7×7 conv 의 mixture) 가 minimal search unit. 기존 NAS 의 layer block 보다 훨씬 작음.
+- **Atomic block 정의** — 한 layer 안의 individual channel + kernel choice (e.g. 3×3 / 5×5 / 7×7 conv 의 mixture; 원논문 §3 search space) 가 minimal search unit. 기존 NAS 의 layer block 보다 훨씬 작음.
 - **Supernet 의 atomic 다양성** — 같은 layer 안에 여러 atomic block 이 parallel 로 공존, 학습이 가장 유용한 것을 select.
 - **On-the-fly shrinkage** — output 에 미세 영향만 주는 atomic block 을 학습 중 자동 prune. search + train 이 통합.
 
