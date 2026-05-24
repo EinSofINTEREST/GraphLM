@@ -1,6 +1,7 @@
-"""Utility functions for GraphLM (seed, exceptions, logging helpers, etc.)."""
+"""Utility functions for GraphLM (seed, exceptions, paths, logging helpers, etc.)."""
 
 from graphlm.utils.exceptions import FunctionPreservationError, GraphLMError
+from graphlm.utils.paths import repo_root
 from graphlm.utils.seed import set_seed
 
-__all__ = ["FunctionPreservationError", "GraphLMError", "set_seed"]
+__all__ = ["FunctionPreservationError", "GraphLMError", "repo_root", "set_seed"]
