@@ -145,8 +145,14 @@ class GrowingDecoder(nn.Module):
 
         Note:
             optimizer state 갱신은 caller 책임 — `loop.py` 의 grow callback 에서 처리.
+            새 block 의 weight 는 `_init_weights` 와 동일 분포로 초기화 (일관성 유지).
         """
         new_block = DecoderBlock(self.cfg, residual_scale=residual_scale)
+        # _init_weights 의 custom std 와 동일 분포로 init — 전체 모델 weight 일관성
+        std = 0.02 / math.sqrt(2 * self.cfg.n_init_layers)
+        for m in new_block.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0.0, std=std)
         # 같은 device 로 이동
         device = next(self.parameters()).device
         new_block = new_block.to(device)

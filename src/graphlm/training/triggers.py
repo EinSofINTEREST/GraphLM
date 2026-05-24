@@ -45,16 +45,28 @@ class PlateauTrigger:
         self.cooldown = cooldown
         self.min_history = min_history if min_history is not None else window
         self._buf: deque[float] = deque(maxlen=window)
+        self._sum: float = 0.0
+        self._sum_sq: float = 0.0
         self._last_trigger_step: int | None = None
         self._step: int = 0
 
     def update(self, loss: float) -> bool:
         """Add a new loss value and return True if plateau detected.
 
+        Incremental O(1) sum + sum_sq update — 큰 window 에서도 매 step overhead 최소.
+
         Returns:
             True if `update` triggers a grow event at this step, else False.
         """
-        self._buf.append(float(loss))
+        v = float(loss)
+        # buffer 가 가득 차서 가장 오래된 값이 밀려나면 sum / sum_sq 에서도 제거
+        if len(self._buf) == self.window:
+            old = self._buf[0]
+            self._sum -= old
+            self._sum_sq -= old * old
+        self._buf.append(v)
+        self._sum += v
+        self._sum_sq += v * v
         self._step += 1
 
         if len(self._buf) < self.min_history:
@@ -67,9 +79,10 @@ class PlateauTrigger:
         ):
             return False
 
-        # σ 계산 — population std (n-1 이 아니라 n 으로 나눔, 단순화)
-        mean = sum(self._buf) / len(self._buf)
-        var = sum((x - mean) ** 2 for x in self._buf) / len(self._buf)
+        # population variance = E[X²] - (E[X])²
+        n = len(self._buf)
+        mean = self._sum / n
+        var = max(self._sum_sq / n - mean * mean, 0.0)  # floating-point 음수 방지
         sigma = var**0.5
 
         if sigma < self.epsilon:

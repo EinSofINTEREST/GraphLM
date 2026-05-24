@@ -93,7 +93,8 @@ def iter_random_batches(
         raise ValueError(f"dataset too small: {n} <= block_size {block_size}")
     count = 0
     while n_batches is None or count < n_batches:
-        ix = torch.randint(0, n - block_size - 1, (batch_size,), generator=g)
+        # randint high 는 exclusive. i 의 max = n - block_size - 1 (inclusive) → high = n - block_size
+        ix = torch.randint(0, n - block_size, (batch_size,), generator=g)
         x = torch.stack([dataset.data[i : i + block_size] for i in ix])
         y = torch.stack([dataset.data[i + 1 : i + 1 + block_size] for i in ix])
         yield x, y

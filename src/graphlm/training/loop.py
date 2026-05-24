@@ -54,14 +54,26 @@ class TrainResult:
     final_n_params: int = 0
 
 
-def _rebuild_optimizer(model: GrowingDecoder, cfg: TrainConfig) -> torch.optim.Optimizer:
-    """새 parameter 가 추가된 후 optimizer 를 재생성.
-
-    AdamW 의 internal state (m, v moments) 는 기존 parameter 의 것만 갖고 있어
-    그대로 두면 새 parameter 의 state 가 없음. 가장 단순한 방법은 재생성 — moment 가
-    초기화되어 \"warm restart\" 효과. Phase 1 minimum 으로 충분.
-    """
+def _make_optimizer(model: GrowingDecoder, cfg: TrainConfig) -> torch.optim.Optimizer:
+    """초기 optimizer 생성 (한 번만)."""
     return torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+
+
+def _register_new_params(
+    optimizer: torch.optim.Optimizer,
+    new_params: list[torch.nn.Parameter],
+    cfg: TrainConfig,
+) -> None:
+    """새 parameter 만 optimizer 에 add_param_group 으로 등록.
+
+    Why not 재생성:
+        재생성하면 기존 parameter 의 momentum (m, v) 가 모두 reset 되어 학습 spike 가능.
+        본 PR 의 핵심 invariant \"function preservation 으로 spike 없음\" 과 충돌.
+        add_param_group 은 기존 state 유지 + 신규 param 만 0 state 로 시작 → 안전.
+    """
+    optimizer.add_param_group(
+        {"params": new_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay}
+    )
 
 
 def train(
@@ -83,7 +95,7 @@ def train(
     model.to(device)
     model.train()
 
-    optimizer = _rebuild_optimizer(model, cfg)
+    optimizer = _make_optimizer(model, cfg)
     trigger = PlateauTrigger(
         window=cfg.trigger_window,
         epsilon=cfg.trigger_epsilon,
@@ -128,7 +140,9 @@ def train(
         # Trigger check
         if trigger.update(loss_val) and model.n_layers < cfg.max_layers:
             new_idx = add_layer_function_preserving(model)
-            optimizer = _rebuild_optimizer(model, cfg)
+            # 기존 param 의 momentum 유지를 위해 새 param 만 add_param_group
+            new_params = list(model.blocks[new_idx].parameters())
+            _register_new_params(optimizer, new_params, cfg)
             result.grow_events.append((step, model.n_layers))
             logger.info(
                 "🌱 GROW @ step=%d → n_layers=%d (new block idx=%d, alpha=0)",
