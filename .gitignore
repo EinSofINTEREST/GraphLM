@@ -94,3 +94,6 @@ Thumbs.db
 
 # Claude scheduler lock (session-local)
 .claude/scheduled_tasks.lock
+
+# uv
+uv.lock
