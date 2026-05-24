@@ -11,9 +11,10 @@ requires-python = ">=3.12"
 license = { text = "TBD" }
 authors = [{ name = "juhy0987", email = "juhy0987@gmail.com" }]
 
-# 코어 런타임 의존성 — 실제 ML 프레임워크 / 도메인 라이브러리는 실험 진행하며 추가
+# 코어 런타임 의존성 — Phase 1 prototype (#23) 부터 torch 도입
 dependencies = [
     "numpy>=1.26",
+    "torch>=2.0",
 ]
 
 [project.optional-dependencies]
