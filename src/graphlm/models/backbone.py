@@ -97,8 +97,7 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = x + self.alpha * self.attn(self.ln1(x))
-        x = x + self.alpha * self.ffn(self.ln2(x))
-        return x
+        return x + self.alpha * self.ffn(self.ln2(x))
 
 
 class GrowingDecoder(nn.Module):
@@ -128,7 +127,9 @@ class GrowingDecoder(nn.Module):
     def _init_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.cfg.n_init_layers))
+                nn.init.normal_(
+                    m.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.cfg.n_init_layers)
+                )
             elif isinstance(m, nn.Embedding):
                 nn.init.normal_(m.weight, mean=0.0, std=0.02)
 
@@ -170,7 +171,7 @@ class GrowingDecoder(nn.Module):
             logits of shape ``[B, T, vocab_size]``.
         """
         B, T = input_ids.shape
-        if T > self.cfg.max_seq_len:
+        if self.cfg.max_seq_len < T:
             raise ValueError(f"seq_len {T} exceeds max {self.cfg.max_seq_len}")
         pos = torch.arange(T, device=input_ids.device)
         x = self.token_emb(input_ids) + self.pos_emb(pos)
@@ -178,5 +179,4 @@ class GrowingDecoder(nn.Module):
             x = block(x)
         x = self.final_ln(x)
         # weight tied LM head
-        logits = x @ self.token_emb.weight.t()
-        return logits
+        return x @ self.token_emb.weight.t()
