@@ -14,7 +14,7 @@ GraphLM 의 핵심 패러다임은 **training-time dynamic parameter count** (�
 |---|---|---|
 | `graph/`, `hybrid/` (기존 8편) | **data-as-graph** | **Baseline reference 보존** — 직접 채택 대상 아님. "데이터를 graph 로" 의 비교군. |
 | `computation-graph/` (sparse activation 6편) | **computation-as-graph (sparse activation 위주)** | **부분적 reference** — MoE/MoD/UT 6편은 \"고정 총량 + 동적 활성\" 이라 본 프로젝트 1순위가 아님. AutoFormer (NAS) / GHN-3 (arch-as-graph) 는 architecture-as-graph 측면 보조 정렬. |
-| `computation-graph/` (dynamic param 22편) ⭐ | **training-time dynamic param count (THIS)** | **1순위 큐레이션** — Growing Networks (5) / DST (5) / DARTS (1) / Adaptive Trigger (5) / Resource·Deployment (6) |
+| `computation-graph/` (dynamic param 22편 + function-level dynamic 7편) ⭐ | **training-time dynamic param count (THIS)** | **1순위 큐레이션** — Growing Networks (5) / DST (5) / DARTS (1) / Adaptive Trigger (5) / Resource·Deployment (6) / **Function-level dynamic (7 신규)** |
 | `lm/` (미사용) | LM 일반 | 필요 시 활성화 |
 
 신규 논문 요약 추가 시 **dynamic parameter count 계열** (Growing / DST / DARTS) 을 우선한다. sparse activation (MoE 류) 와 data-as-graph 는 둘 다 reference 자료 — 직접적 baseline 가치가 명확할 때만 추가.
@@ -180,6 +180,20 @@ docs/papers/
 | [computation-graph/2024-sheared-llama-xia.md](computation-graph/2024-sheared-llama-xia.md) | 2024 | Sheared LLaMA | Learnable mask + Lagrangian budget — LLM 의 targeted pruning |
 | [computation-graph/2024-mobilellm-liu.md](computation-graph/2024-mobilellm-liu.md) | 2024 | MobileLLM | Sub-1B LLM efficient design (deep & thin + GQA + embedding sharing) |
 | [computation-graph/2024-layerskip-elhoushi.md](computation-graph/2024-layerskip-elhoushi.md) | 2024 | LayerSkip | Early-exit + self-speculative decoding — 학습 후 dynamic depth inference |
+
+#### Function-level Dynamic / Modular ⭐ (online structural plasticity, fine-grained NAS, modular foundations)
+
+> ⭐ **Phase 1 보완 시리즈 (#1-#4) 종료 후 새 연구 방향 reference** — Transformer block 의 각 함수 (LN/Linear/Attention/FFN) 를 노드로 보고 학습 중 동적으로 시냅스/노드 변화시키는 컨셉. Phase 1 의 dead block 발견 이후 진정한 graph 형태 모델로의 전환 점검 단계 paper 묶음.
+
+| 파일 | 연도 | 모델/방법 | 한줄 요약 |
+|---|---|---|---|
+| [computation-graph/2025-smgrnn.md](computation-graph/2025-smgrnn.md) | 2025 | SMGrNN | Local structural plasticity 로 학습 중 노드 insert/prune — **가장 직접 선례** (RL/MLP) |
+| [computation-graph/2026-sparse-growing-transformer.md](computation-graph/2026-sparse-growing-transformer.md) | 2026 | Sparse Growing Transformer | Training-time sparse depth allocation via progressive attention looping — Phase 1 와 직접 비교 가능 |
+| [computation-graph/2020-atomnas-mei.md](computation-graph/2020-atomnas-mei.md) | 2020 | AtomNAS | Atomic block 단위 fine-grained NAS + on-the-fly shrinkage (CNN) |
+| [computation-graph/2018-differentiable-plasticity-miconi.md](computation-graph/2018-differentiable-plasticity-miconi.md) | 2018 | Differentiable Plasticity | Connection 별 plasticity 계수 α 자체를 backprop 으로 학습 — α 의 conceptual foundation |
+| [computation-graph/2023-modular-deep-learning-pfeiffer.md](computation-graph/2023-modular-deep-learning-pfeiffer.md) | 2023 | Modular Deep Learning (survey) | modules + routing + aggregation 의 3 차원 taxonomy — 이론적 framework |
+| [computation-graph/2021-modular-transformer-csordas.md](computation-graph/2021-modular-transformer-csordas.md) | 2021 | Are Neural Nets Modular? | Differentiable weight mask 로 Transformer functional modularity 정량 측정 (post-hoc) |
+| [computation-graph/2018-modular-networks-kirsch.md](computation-graph/2018-modular-networks-kirsch.md) | 2018 | Modular Networks | Hard routing + 학습 가능 (Gumbel-Softmax) — emergent specialization |
 
 ## 작성 원칙
 
