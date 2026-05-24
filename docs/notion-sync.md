@@ -1,6 +1,10 @@
-# Notion sync — Papers DB
+# Notion sync — Papers DB + PR DB
 
-GraphLM 의 `docs/papers/**/*.md` 를 Notion 의 **Papers** data source 로 동기화합니다.
+GraphLM 의 두 가지 sync 시스템:
+- **Papers sync**: `docs/papers/**/*.md` → Notion **Papers** DB
+- **PR sync**: GitHub PR → Notion **최근 PR** DB (GitHub Actions 로 자동)
+
+## Papers sync
 
 ## Notion 위치
 
@@ -85,8 +89,58 @@ Notion DB 의 select option 도 함께 추가 필요 (MCP 또는 Notion UI).
 
 본 PR 의 scope 밖 — 별도 issue 로 진행 가능.
 
+---
+
+## PR sync
+
+GraphLM PR 을 Notion **최근 PR** DB 로 자동 sync. IssueTracker 의 동명 시스템을 GraphLM 용으로 포팅.
+
+### Notion 위치
+
+- Workspace: `EinSof : INTEREST` → `Projects` DB → **GraphLM** page → "🔄 최근 PR" inline DB
+- Data source ID: `9d5313fe-bef5-4a91-8787-3ca443f42997`
+
+### 자동 sync (GitHub Actions)
+
+`.github/workflows/notion-pr-sync.yml` 가 다음 시점에 자동 실행:
+- `pull_request` 이벤트 (opened / reopened / edited / synchronize / closed)
+- 머지된 PR 은 `상태 = Merged` + `Merged` 날짜 자동 설정
+- 닫혔지만 머지 안 된 PR 은 Notion 에서 archive
+
+전제: `NOTION_API_TOKEN` secret 이 repo 또는 org level 에 설정. 없으면 workflow 가 warning 만 출력하고 skip.
+
+### 수동 backfill (전체 재구성)
+
+GitHub Actions 의 `workflow_dispatch` 로 실행 가능 — `full_resync=true` 체크. 또는 local 에서:
+
+```bash
+export NOTION_API_TOKEN=$(grep '^NOTION_API_TOKEN=' .env | cut -d= -f2-)
+export GH_TOKEN=$(grep '^GH_TOKEN=' .env | cut -d= -f2-)  # 또는 gh auth token
+python3 scripts/notion_pr_sync.py --mode backfill
+```
+
+### DB schema
+
+| Property | Type | 매핑 |
+|---|---|---|
+| 제목 | title | PR title 의 prefix `[CAT#N]` 제거된 본문 |
+| 번호 | number | PR number |
+| 카테고리 | select | prefix 의 카테고리 (FEAT/FIX/REFAC/DOCS/CHORE) |
+| 연결 이슈 | number | prefix 의 `#N` |
+| 상태 | select | Open / Merged |
+| Merged | date | mergedAt (머지된 경우만) |
+| Created | date | createdAt |
+| URL | url | PR URL |
+| 작성자 | rich_text | author.login |
+
+각 PR row 의 page 본문에는 PR description (markdown → Notion blocks) + 변경 파일 목록.
+
+---
+
 ## 관련 파일
 
-- `scripts/notion_papers_sync.py` — sync 스크립트
+- `scripts/notion_papers_sync.py` — papers sync 스크립트
+- `scripts/notion_pr_sync.py` — PR sync 스크립트 (IssueTracker 포팅)
+- `.github/workflows/notion-pr-sync.yml` — PR sync 자동화
 - `docs/papers/` — paper md 원본
-- `.env` — `NOTION_API_TOKEN` (gitignore)
+- `.env` — `NOTION_API_TOKEN` + `GH_TOKEN` (gitignore)
