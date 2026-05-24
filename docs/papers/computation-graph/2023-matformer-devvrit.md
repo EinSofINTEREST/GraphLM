@@ -17,7 +17,7 @@ cited_in: []
 
 - 하나의 Transformer 안에 **g 개의 nested sub-transformer (g=4 typical)** 가 공존 — 가장 큰 FFN 의 첫 부분만 잘라내면 작은 FFN, 더 작은 부분이면 더 작은 FFN.
 - 단일 학습으로 **모든 size 의 sub-transformer 가 동시 학습 + 사용 가능** — Once-for-All 의 LLM-친화적 modern 버전.
-- 본 프로젝트 관점: **\"학습 중 dynamic param count\" 의 deployment 측 dual\"** — 학습된 큰 모델에서 다양 size 추출. OFA 가 vision 위주였다면 MatFormer 는 Transformer LM 첫 검증.
+- 본 프로젝트 관점: **\"학습 중 dynamic param count\" 의 deployment 측 dual** — 학습된 큰 모델에서 다양 size 추출. OFA 가 vision 위주였다면 MatFormer 는 Transformer LM 첫 검증.
 
 > ⚠️ **주의**: deployment-time flexibility 패러다임 — 학습 중 동적 증가 자체와는 dual. 본 프로젝트의 \"성장한 모델 사후 적응\" 단계에 reference.
 
@@ -44,7 +44,7 @@ cited_in: []
 
 ## 실험 / 결과
 
-- MatLM-2.6B: 학습된 supernet 에서 추출한 모든 sub-LM (78M ~ 2.6B) 이 동일 size 의 standalone 학습 동등 또는 약간 우위.
+- MatLM-2.6B (원논문 §4.1, Table 2): 학습된 supernet 에서 추출한 모든 sub-LM (78M ~ 2.6B) 이 동일 size 의 standalone 학습 동등 또는 약간 우위. 구체적 size 변형 ($d_g/8, d_g/4, d_g/2, d_g$) 은 §3.2 참조.
 - Mix-and-match (layer 별 다른 size) 의 추가 자유도 — Pareto frontier 우위.
 - 단일 학습 비용 = 가장 큰 sub-transformer 학습 비용 (overhead 미미).
 - 재현성: 공식 (Google research) 부분 공개.

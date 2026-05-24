@@ -54,7 +54,7 @@ Lagrangian 으로 target cost $C_{\text{target}}$ 강제.
 
 ## 한계 / 비판적 시각
 
-- 출발점이 사전학습된 LLaMA 가정 — \"from scratch\" 가 아닌 \"already trained\" 가 필요.
+- 출발점이 사전학습된 LLaMA 라고 가정함 — \"from scratch\" 가 아닌 \"already trained\" 가 필요.
 - Continued pretraining 50B token 도 작지 않은 비용.
 - Target size 가 미리 정해져야 함 — \"learning the size\" 까지는 아님.
 - Mask 학습 시 weight 가 frozen 또는 함께 학습되는지 detail 의존 — hyperparameter 민감.

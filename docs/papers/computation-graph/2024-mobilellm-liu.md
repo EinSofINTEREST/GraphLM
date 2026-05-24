@@ -16,7 +16,7 @@ cited_in: []
 ## TL;DR (3줄)
 
 - On-device 배포를 위한 sub-1B LLM 의 **architecture design choice 체계 정리** — depth (deep & thin) vs width 의 trade-off, embedding sharing, grouped query attention, block-wise weight sharing 등.
-- MobileLLM-125M / 350M 이 동일 size 의 기존 baseline (OPT-125M, OPT-350M 등) 대비 zero-shot benchmark 평균 +2~3%p — 가장 efficient sub-1B LLM.
+- MobileLLM-125M / 350M 이 동일 size 의 기존 baseline (OPT-125M, OPT-350M 등) 대비 zero-shot benchmark 평균 +8~10%p — 가장 efficient sub-1B LLM.
 - 본 프로젝트 관점: **\"고정된 budget 내 최적 design\"** 의 reference. \"성장의 종착점이 어디여야 하는가\" 의 답.
 
 ## 핵심 기여
