@@ -66,5 +66,5 @@ cited_in: []
 ## 참고 / 인용
 
 - 공식 코드: <https://github.com/meijieru/AtomNAS> (PyTorch)
-- 관련 논문: [DARTS](2019-darts-liu.md) (가장 직접 baseline), [FGNAS](https://arxiv.org/pdf/1911.07478) (channel-level fine-grained), [Once-for-All](2019-once-for-all-cai.md) (supernet)
+- 관련 논문: [DARTS](2019-darts-liu.md) (가장 직접 baseline), [FGNAS](https://arxiv.org/pdf/1911.07478) (channel-level fine-grained), [Once-for-All](2020-once-for-all-cai.md) (supernet)
 - 본 프로젝트 내 인용 위치: function-level 노드 컨셉의 NAS 차원 reference

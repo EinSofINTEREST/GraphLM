@@ -63,5 +63,5 @@ cited_in: []
 
 ## 참고 / 인용
 
-- 관련 논문: [Universal Transformer](2018-universal-transformer-dehghani.md) (weight reuse 원형), [MoD (Mixture of Depths)](../computation-graph/2024-mod-raposo.md) (sparse depth 의 inference 버전), [LiGO](2023-ligo-wang.md) (Phase 2 의 width growth baseline)
+- 관련 논문: [Universal Transformer](2019-universal-transformer-dehghani.md) (weight reuse 원형), [MoD (Mixture of Depths)](../computation-graph/2024-mod-raposo.md) (sparse depth 의 inference 버전), [LiGO](2023-ligo-wang.md) (Phase 2 의 width growth baseline)
 - 본 프로젝트 내 인용 위치: Phase 1 와 직접 비교 reference
