@@ -8,15 +8,15 @@ Modes (from --mode):
 Required env:
   NOTION_API_TOKEN  Notion integration token (workspace bot)
   GH_TOKEN          GitHub token (defaults to github.token in Actions)
-  PR_DS_ID          Notion data source id (defaults to repo constant below)
-  REPO              owner/repo (defaults to EinSofINTEREST/IssueTracker)
+  PR_DS_ID          Notion data source id (defaults to DEFAULT_DS_ID below)
+  REPO              owner/repo (defaults to DEFAULT_REPO below — EinSofINTEREST/GraphLM)
 
 Event-mode env (set by GitHub Actions pull_request payload):
   PR_NUMBER
   PR_STATE          'open' | 'closed'
   PR_MERGED         'true' | 'false'
 
-Notion DB schema (data source e9b7771f-...):
+Notion DB schema (data source 9d5313fe-bef5-4a91-8787-3ca443f42997):
   제목 (title) · 번호 (number) · 카테고리 (select) · 연결 이슈 (number)
   Merged (date) · URL (url) · 작성자 (rich_text)
   상태 (select: Open / Merged) · Created (date)
