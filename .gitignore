@@ -51,15 +51,16 @@ ipython_config.py
 # 의도적으로 *.ipynb 자체는 추적 — 다만 output cell 은 nbstripout 으로 비워서 커밋
 
 # Experiment artifacts (큰 파일은 git 에 넣지 않음 — DVC/외부 스토리지 권장)
-data/
-!data/README.md
-models/
-checkpoints/
-runs/
-mlruns/
-wandb/
-lightning_logs/
-outputs/
+# 주의: root 경로만 ignore — `src/graphlm/data/` `src/graphlm/models/` 는 패키지 코드라 추적
+/data/
+!/data/README.md
+/models/
+/checkpoints/
+/runs/
+/mlruns/
+/wandb/
+/lightning_logs/
+/outputs/
 *.ckpt
 *.pt
 *.pth
