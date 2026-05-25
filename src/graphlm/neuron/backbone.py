@@ -219,7 +219,7 @@ class NeuronBlock(nn.Module):
         *,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
-    ) -> "SinusoidalAlpha":
+    ) -> SinusoidalAlpha:
         """Phase 6: ``init_amp=0, init_bias=value`` — sweet spot 등가 init.
 
         amplitude 가 0 으로 시작하므로 init 시점 forward 는 per-channel α=value 와 동일.
