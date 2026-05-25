@@ -35,6 +35,10 @@ def add_attn_smooth_start(
     작은 forward 변화 = 작은 loss spike) 하는 대신 추가 attn 의 weight 가 처음부터
     의미 있는 gradient flow 받음 → α 0 갇힘 회피 가능성 확보.
 
+    α shape 은 ``model.cfg.alpha_per_channel`` 에 의해 결정 — scalar (Phase 1~3) 또는
+    per-channel vector ∈ ℝ^{hidden_dim} (Phase 4+). 어느 경우든 ``alpha_init`` (float) 는
+    모든 채널에 동일하게 적용 (uniform init).
+
     Args:
         model: target NeuronGrowingDecoder.
         block_idx: target block index (0-based).
