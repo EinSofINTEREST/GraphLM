@@ -129,11 +129,21 @@ class NeuronBlock(nn.Module):
         self.ffn = FFN(cfg.hidden_dim, cfg.ffn_dim, cfg.dropout)
         self.ffn_alpha = nn.Parameter(self._make_alpha(1.0))
 
-    def _make_alpha(self, value: float) -> Tensor:
-        """scalar (Phase 1~3) or per-channel vector ∈ ℝ^{hidden_dim} (Phase 4+)."""
+    def _make_alpha(
+        self,
+        value: float,
+        *,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> Tensor:
+        """scalar (Phase 1~3) or per-channel vector ∈ ℝ^{hidden_dim} (Phase 4+).
+
+        device/dtype 를 명시하면 그대로 사용 (add_attn 시 기존 param 과 동기). None 이면 default
+        (__init__ 호출 — 이후 ``model.to()`` 가 일괄 이동).
+        """
         if self.cfg.alpha_per_channel:
-            return torch.full((self.cfg.hidden_dim,), value)
-        return torch.tensor(value)
+            return torch.full((self.cfg.hidden_dim,), value, device=device, dtype=dtype)
+        return torch.tensor(value, device=device, dtype=dtype)
 
     @property
     def n_attn(self) -> int:
@@ -148,7 +158,11 @@ class NeuronBlock(nn.Module):
         return x + self.ffn_alpha * self.ffn(self.ln_ffn(x))
 
     def add_attn(self, *, residual_scale: float = 0.0, init_std: float | None = None) -> int:
-        """Append a new attention module (LayerNorm + CausalSelfAttention + scalar α).
+        """Append a new attention module (LayerNorm + CausalSelfAttention + α).
+
+        새 α 는 ``cfg.alpha_per_channel`` 에 따라 scalar (Phase 1~3 호환) 또는 per-channel
+        vector ∈ ℝ^{hidden_dim} (Phase 4+) 로 생성. 어느 경우든 ``residual_scale`` (float) 는
+        모든 채널에 uniform init.
 
         Args:
             residual_scale: 신규 attention 의 초기 α. function preservation 보장을 위해 default 0.0.
@@ -163,12 +177,15 @@ class NeuronBlock(nn.Module):
             for m in new_attn.modules():
                 if isinstance(m, nn.Linear):
                     nn.init.normal_(m.weight, mean=0.0, std=init_std)
-        new_alpha = nn.Parameter(self._make_alpha(residual_scale))
-        device = next(self.parameters()).device
-        self.attn_lns.append(new_ln.to(device))
-        self.attns.append(new_attn.to(device))
-        # nn.ParameterList 에 추가
-        self.attn_alphas.append(new_alpha.to(device))
+        # 기존 param 의 device/dtype 와 동기 — Parameter().to(device) 가 Tensor 를 반환할 수
+        # 있는 PyTorch quirk 회피 (gemini #3296196217). _make_alpha 에 device/dtype 명시.
+        ref_param = next(self.parameters())
+        new_alpha = nn.Parameter(
+            self._make_alpha(residual_scale, device=ref_param.device, dtype=ref_param.dtype)
+        )
+        self.attn_lns.append(new_ln.to(ref_param.device))
+        self.attns.append(new_attn.to(ref_param.device))
+        self.attn_alphas.append(new_alpha)
         return len(self.attns) - 1
 
 
