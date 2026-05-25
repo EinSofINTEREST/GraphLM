@@ -40,6 +40,9 @@ class NeuronConfig:
     n_init_attn: int = 1
     # Phase 4: α 를 scalar (False, Phase 1~3 호환) 또는 per-channel vector ∈ ℝ^{hidden_dim} (True)
     alpha_per_channel: bool = False
+    # Phase 6: α 를 위치의 함수 α(t)[c] = a_c·sin(t·ω_c) + b_c 로 정의 (SinusoidalAlpha).
+    # alpha_per_channel 과 동시 True 불가 — exclusive.
+    alpha_positional: bool = False
 
     def __post_init__(self) -> None:
         # downstream divide-by-zero / 잘못된 attention head dim 방지 위한 최소 검증
@@ -59,6 +62,10 @@ class NeuronConfig:
             raise ValueError(f"vocab_size must be >= 1, got {self.vocab_size}")
         if self.max_seq_len < 1:
             raise ValueError(f"max_seq_len must be >= 1, got {self.max_seq_len}")
+        if self.alpha_per_channel and self.alpha_positional:
+            raise ValueError(
+                "alpha_per_channel and alpha_positional are mutually exclusive (got both True)"
+            )
 
 
 class CausalSelfAttention(nn.Module):
@@ -99,6 +106,55 @@ class FFN(nn.Module):
         return self.dropout(self.fc2(torch.nn.functional.gelu(self.fc1(x))))
 
 
+class SinusoidalAlpha(nn.Module):
+    """Phase 6: 위치의 함수로 정의되는 per-channel α.
+
+    α(t)[c] = a_c · sin(t · ω_c) + b_c
+
+    - ``amplitude`` (a_c): 채널별 진폭 — position 의존성 크기. 0 이면 position 무관 (b_c constant).
+    - ``log_freq`` (= log ω_c): 채널별 주파수 (양수 보장 위해 log-space). init 은 log-spaced
+      [1/100, 1.0].
+    - ``bias`` (b_c): 채널별 baseline. Phase 4/5 의 per-channel scalar α 와 등가 init.
+
+    Init 규약 (function preservation 지원):
+    - ``init_amp=0, init_bias=0`` → α(t) = 0 ∀t (forward 불변)
+    - ``init_amp=0, init_bias=v`` → α(t) = v ∀t (Phase 4/5 sweet spot 등가)
+    - 학습이 amplitude 를 키워 position dependency 가 자율적으로 emerge.
+
+    forward 는 ``T`` (시퀀스 길이) 받고 ``(T, hidden_dim)`` 텐서 반환 — (B, T, H) attn 출력과
+    broadcasting.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        *,
+        init_amp: float = 0.0,
+        init_bias: float = 0.0,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.amplitude = nn.Parameter(
+            torch.full((hidden_dim,), init_amp, device=device, dtype=dtype)
+        )
+        self.bias = nn.Parameter(torch.full((hidden_dim,), init_bias, device=device, dtype=dtype))
+        # log-spaced initial frequencies in [1/100, 1.0] → period [2π, 200π]
+        log_freq_init = torch.linspace(
+            math.log(0.01), math.log(1.0), hidden_dim, device=device, dtype=dtype
+        )
+        self.log_freq = nn.Parameter(log_freq_init)
+
+    def forward(self, seq_len: int) -> Tensor:
+        # device/dtype 는 학습된 파라미터로부터 (model.to() 이동에 따라 자동 일치)
+        device = self.amplitude.device
+        dtype = self.amplitude.dtype
+        t = torch.arange(seq_len, device=device, dtype=dtype).unsqueeze(-1)  # (T, 1)
+        freq = self.log_freq.exp().unsqueeze(0)  # (1, hidden_dim)
+        return self.amplitude.unsqueeze(0) * torch.sin(t * freq) + self.bias.unsqueeze(0)
+
+
 class NeuronBlock(nn.Module):
     """Pre-LN Decoder block with **multiple parallel attention modules** (n_attn growing).
 
@@ -107,8 +163,11 @@ class NeuronBlock(nn.Module):
         x = x + alpha_ffn * ffn(ln_ffn(x))
 
     각 attention module (= 1 노드) 는 독립적 LayerNorm + CausalSelfAttention + α.
-    α 의 shape 은 ``NeuronConfig.alpha_per_channel`` 에 의해 결정 — scalar (False, Phase 1~3 호환)
-    또는 per-channel vector ∈ ℝ^{hidden_dim} (True, Phase 4+). broadcasting 으로 forward 동일.
+    α 의 형태는 ``NeuronConfig`` 의 두 플래그로 결정 (mutually exclusive):
+    - 기본 (둘 다 False, Phase 1~3): scalar (broadcasting 으로 적용)
+    - ``alpha_per_channel=True`` (Phase 4+): per-channel vector ∈ ℝ^{hidden_dim}
+    - ``alpha_positional=True`` (Phase 6+): SinusoidalAlpha 모듈, α(t)[c] = a_c·sin(t·ω_c) + b_c
+    forward 는 isinstance(alpha, nn.Module) 로 dispatch.
     FFN 은 표준 1개 (Phase 1 scope 단순화).
     """
 
@@ -122,14 +181,23 @@ class NeuronBlock(nn.Module):
                 for _ in range(n_init_attn)
             ]
         )
-        self.attn_alphas = nn.ParameterList(
-            [nn.Parameter(self._make_alpha(1.0)) for _ in range(n_init_attn)]
-        )
+        # alpha container 타입은 alpha_positional 에 따라 분기:
+        # - positional: ModuleList[SinusoidalAlpha] (forward 시 alpha(T) 호출)
+        # - 그 외: ParameterList[nn.Parameter] (직접 broadcast)
+        if cfg.alpha_positional:
+            self.attn_alphas = nn.ModuleList(
+                [self._make_alpha_module(1.0) for _ in range(n_init_attn)]
+            )
+            self.ffn_alpha = self._make_alpha_module(1.0)
+        else:
+            self.attn_alphas = nn.ParameterList(
+                [nn.Parameter(self._make_alpha_tensor(1.0)) for _ in range(n_init_attn)]
+            )
+            self.ffn_alpha = nn.Parameter(self._make_alpha_tensor(1.0))
         self.ln_ffn = nn.LayerNorm(cfg.hidden_dim)
         self.ffn = FFN(cfg.hidden_dim, cfg.ffn_dim, cfg.dropout)
-        self.ffn_alpha = nn.Parameter(self._make_alpha(1.0))
 
-    def _make_alpha(
+    def _make_alpha_tensor(
         self,
         value: float,
         *,
@@ -145,6 +213,26 @@ class NeuronBlock(nn.Module):
             return torch.full((self.cfg.hidden_dim,), value, device=device, dtype=dtype)
         return torch.tensor(value, device=device, dtype=dtype)
 
+    def _make_alpha_module(
+        self,
+        value: float,
+        *,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> "SinusoidalAlpha":
+        """Phase 6: ``init_amp=0, init_bias=value`` — sweet spot 등가 init.
+
+        amplitude 가 0 으로 시작하므로 init 시점 forward 는 per-channel α=value 와 동일.
+        학습이 amplitude 를 키워 position dependency 가 emerge.
+        """
+        return SinusoidalAlpha(
+            self.cfg.hidden_dim,
+            init_amp=0.0,
+            init_bias=value,
+            device=device,
+            dtype=dtype,
+        )
+
     @property
     def n_attn(self) -> int:
         return len(self.attns)
@@ -152,10 +240,13 @@ class NeuronBlock(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         # parallel: 모든 attention module 이 *같은* 입력 (attn_input) 에서 계산.
         # block 내부 depth 가 늘어나지 않고 width-like (head-level parallel) 의미 유지.
+        T = x.shape[1]
         attn_input = x
         for ln, attn, alpha in zip(self.attn_lns, self.attns, self.attn_alphas, strict=True):
-            x = x + alpha * attn(ln(attn_input))
-        return x + self.ffn_alpha * self.ffn(self.ln_ffn(x))
+            a = alpha(T) if isinstance(alpha, nn.Module) else alpha
+            x = x + a * attn(ln(attn_input))
+        ffn_a = self.ffn_alpha(T) if isinstance(self.ffn_alpha, nn.Module) else self.ffn_alpha
+        return x + ffn_a * self.ffn(self.ln_ffn(x))
 
     def add_attn(self, *, residual_scale: float = 0.0, init_std: float | None = None) -> int:
         """Append a new attention module (LayerNorm + CausalSelfAttention + α).
@@ -178,11 +269,18 @@ class NeuronBlock(nn.Module):
                 if isinstance(m, nn.Linear):
                     nn.init.normal_(m.weight, mean=0.0, std=init_std)
         # 기존 param 의 device/dtype 와 동기 — Parameter().to(device) 가 Tensor 를 반환할 수
-        # 있는 PyTorch quirk 회피 (gemini #3296196217). _make_alpha 에 device/dtype 명시.
+        # 있는 PyTorch quirk 회피 (gemini #3296196217).
         ref_param = next(self.parameters())
-        new_alpha = nn.Parameter(
-            self._make_alpha(residual_scale, device=ref_param.device, dtype=ref_param.dtype)
-        )
+        if self.cfg.alpha_positional:
+            new_alpha = self._make_alpha_module(
+                residual_scale, device=ref_param.device, dtype=ref_param.dtype
+            )
+        else:
+            new_alpha = nn.Parameter(
+                self._make_alpha_tensor(
+                    residual_scale, device=ref_param.device, dtype=ref_param.dtype
+                )
+            )
         self.attn_lns.append(new_ln.to(ref_param.device))
         self.attns.append(new_attn.to(ref_param.device))
         self.attn_alphas.append(new_alpha)

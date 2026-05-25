@@ -201,3 +201,119 @@ def test_per_channel_n_params_delta(per_channel_cfg):
         + per_channel_cfg.hidden_dim  # per-channel alpha (= hidden_dim instead of +1)
     )
     assert after - before == expected_delta
+
+
+# ---------- Phase 6: positional (SinusoidalAlpha) α ---------- #
+
+
+@pytest.fixture
+def positional_cfg():
+    return NeuronConfig(
+        vocab_size=32,
+        hidden_dim=64,
+        n_heads=2,
+        ffn_dim=128,
+        max_seq_len=16,
+        n_layers=2,
+        n_init_attn=1,
+        alpha_positional=True,
+    )
+
+
+def test_positional_alpha_module_shape(positional_cfg):
+    """attn_alphas, ffn_alpha 가 SinusoidalAlpha 모듈, forward 출력 (T, hidden_dim)."""
+    from graphlm.neuron.backbone import SinusoidalAlpha
+
+    model = NeuronGrowingDecoder(positional_cfg)
+    for block in model.blocks:
+        assert isinstance(block.attn_alphas[0], SinusoidalAlpha)
+        assert isinstance(block.ffn_alpha, SinusoidalAlpha)
+        a = block.attn_alphas[0](8)
+        assert a.shape == (8, positional_cfg.hidden_dim)
+
+
+def test_positional_alpha_sweet_spot_init_equivalent_to_per_channel(positional_cfg):
+    """init_amp=0, init_bias=value → forward 결과가 per-channel α=value 와 동일.
+
+    sweet spot 등가 init 보장 — Phase 6 가 Phase 4/5 의 위치 무관 baseline 으로부터 출발.
+    """
+    init_v = 0.10
+    # positional: bias=0.10, amplitude=0 → α(t)=0.10 ∀t
+    torch.manual_seed(0)
+    m_pos = NeuronGrowingDecoder(positional_cfg)
+    # 모든 SinusoidalAlpha 의 bias 를 init_v 로 (기본은 1.0, sweet spot 비교용으로 변경)
+    for block in m_pos.blocks:
+        for alpha_mod in block.attn_alphas:
+            with torch.no_grad():
+                alpha_mod.bias.fill_(init_v)
+                alpha_mod.amplitude.fill_(0.0)
+        with torch.no_grad():
+            block.ffn_alpha.bias.fill_(init_v)
+            block.ffn_alpha.amplitude.fill_(0.0)
+
+    # per-channel: alpha=0.10 모든 채널
+    per_ch_cfg = NeuronConfig(
+        vocab_size=positional_cfg.vocab_size,
+        hidden_dim=positional_cfg.hidden_dim,
+        n_heads=positional_cfg.n_heads,
+        ffn_dim=positional_cfg.ffn_dim,
+        max_seq_len=positional_cfg.max_seq_len,
+        n_layers=positional_cfg.n_layers,
+        n_init_attn=positional_cfg.n_init_attn,
+        alpha_per_channel=True,
+    )
+    torch.manual_seed(0)
+    m_pc = NeuronGrowingDecoder(per_ch_cfg)
+    for block in m_pc.blocks:
+        for alpha in block.attn_alphas:
+            with torch.no_grad():
+                alpha.fill_(init_v)
+        with torch.no_grad():
+            block.ffn_alpha.fill_(init_v)
+
+    m_pos.eval()
+    m_pc.eval()
+    x = torch.randint(0, positional_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_pos = m_pos(x)
+        out_pc = m_pc(x)
+    assert torch.allclose(out_pos, out_pc, atol=1e-5), (
+        f"sweet spot 등가 깨짐: max diff {(out_pos - out_pc).abs().max().item()}"
+    )
+
+
+def test_positional_alpha_zero_preserves_function(positional_cfg):
+    """추가 attn 에 residual_scale=0.0 → SinusoidalAlpha 의 bias=0, amplitude=0 → forward 불변."""
+    torch.manual_seed(0)
+    model = NeuronGrowingDecoder(positional_cfg)
+    model.eval()
+    x = torch.randint(0, positional_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_before = model(x)
+        model.add_attn(0, residual_scale=0.0)
+        out_after = model(x)
+    assert torch.allclose(out_before, out_after, atol=1e-6)
+
+
+def test_positional_alpha_frequency_learnable(positional_cfg):
+    """log_freq 에 gradient 가 흐름 — sinusoidal 가치 입증의 전제."""
+    model = NeuronGrowingDecoder(positional_cfg)
+    x = torch.randint(0, positional_cfg.vocab_size, (2, 8))
+    out = model(x)
+    loss = out.sum()
+    loss.backward()
+    for block in model.blocks:
+        for alpha_mod in block.attn_alphas:
+            assert alpha_mod.log_freq.grad is not None
+            assert alpha_mod.amplitude.grad is not None
+            assert alpha_mod.bias.grad is not None
+
+
+def test_config_validation_mutually_exclusive_alpha_modes():
+    """alpha_per_channel 과 alpha_positional 동시 True 는 거부."""
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        NeuronConfig(
+            vocab_size=32,
+            alpha_per_channel=True,
+            alpha_positional=True,
+        )
