@@ -323,7 +323,7 @@ def test_config_validation_mutually_exclusive_alpha_modes():
 
 
 def test_positional_init_amp_default_zero():
-    """기본 alpha_positional_init_amp=0.0 — Phase 6 호환 (amplitude=0 시작)."""
+    """기본 alpha_positional_init_amp=0.0 — Phase 6 호환 (attn + ffn 모두 amplitude=0 시작)."""
     cfg = NeuronConfig(
         vocab_size=32,
         hidden_dim=64,
@@ -338,6 +338,10 @@ def test_positional_init_amp_default_zero():
     for block in model.blocks:
         for alpha_mod in block.attn_alphas:
             assert torch.allclose(alpha_mod.amplitude, torch.zeros_like(alpha_mod.amplitude))
+        # ffn_alpha 도 동일 경로 — Copilot #3298929029 회귀 보강
+        assert torch.allclose(
+            block.ffn_alpha.amplitude, torch.zeros_like(block.ffn_alpha.amplitude)
+        )
 
 
 def test_positional_init_amp_nonzero_applied_to_init_and_add():
