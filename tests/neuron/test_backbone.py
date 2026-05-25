@@ -83,3 +83,35 @@ def test_max_seq_len_exceeded_raises(small_cfg):
     x = torch.randint(0, small_cfg.vocab_size, (1, small_cfg.max_seq_len + 1))
     with pytest.raises(ValueError, match="seq_len"):
         model(x)
+
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("n_layers", 0, "n_layers"),
+        ("n_init_attn", 0, "n_init_attn"),
+        ("hidden_dim", 0, "hidden_dim"),
+        ("n_heads", 0, "n_heads"),
+        ("vocab_size", 0, "vocab_size"),
+        ("max_seq_len", 0, "max_seq_len"),
+    ],
+)
+def test_config_validation_rejects_zero(field, value, match):
+    """NeuronConfig.__post_init__ 가 잘못된 값을 명시적 ValueError 로 거부."""
+    kwargs = {
+        "vocab_size": 32,
+        "hidden_dim": 64,
+        "n_heads": 2,
+        "ffn_dim": 128,
+        "max_seq_len": 16,
+        "n_layers": 2,
+        "n_init_attn": 1,
+    }
+    kwargs[field] = value
+    with pytest.raises(ValueError, match=match):
+        NeuronConfig(**kwargs)
+
+
+def test_config_validation_hidden_dim_not_divisible():
+    with pytest.raises(ValueError, match="divisible"):
+        NeuronConfig(vocab_size=32, hidden_dim=65, n_heads=2)

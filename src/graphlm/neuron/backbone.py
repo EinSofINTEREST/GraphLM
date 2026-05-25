@@ -39,6 +39,25 @@ class NeuronConfig:
     # 각 block 의 초기 attention module 수
     n_init_attn: int = 1
 
+    def __post_init__(self) -> None:
+        # downstream divide-by-zero / 잘못된 attention head dim 방지 위한 최소 검증
+        if self.n_layers < 1:
+            raise ValueError(f"n_layers must be >= 1, got {self.n_layers}")
+        if self.n_init_attn < 1:
+            raise ValueError(f"n_init_attn must be >= 1, got {self.n_init_attn}")
+        if self.hidden_dim < 1:
+            raise ValueError(f"hidden_dim must be >= 1, got {self.hidden_dim}")
+        if self.n_heads < 1:
+            raise ValueError(f"n_heads must be >= 1, got {self.n_heads}")
+        if self.hidden_dim % self.n_heads != 0:
+            raise ValueError(
+                f"hidden_dim {self.hidden_dim} not divisible by n_heads {self.n_heads}"
+            )
+        if self.vocab_size < 1:
+            raise ValueError(f"vocab_size must be >= 1, got {self.vocab_size}")
+        if self.max_seq_len < 1:
+            raise ValueError(f"max_seq_len must be >= 1, got {self.max_seq_len}")
+
 
 class CausalSelfAttention(nn.Module):
     """Standard multi-head causal self-attention — `graphlm.models.backbone.CausalSelfAttention` 동일."""
