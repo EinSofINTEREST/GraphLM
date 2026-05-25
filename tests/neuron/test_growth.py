@@ -66,7 +66,12 @@ def test_add_attn_alpha_nonzero_changes_output(small_cfg):
 
 
 def test_add_attn_smooth_start_default_changes_output(small_cfg):
-    """add_attn_smooth_start (alpha_init=0.01 default) 는 작은 forward 변화 발생."""
+    """add_attn_smooth_start (alpha_init=0.01 default) 는 작은 forward 변화 발생.
+
+    `torch.allclose` 의 atol 만 보면 큰 변화도 통과할 수 있어, scalar `max_diff` 로
+    (1) 변화가 0 이 아님 (lower bound), (2) 작은 alpha_init 에 비례해 충분히 작음
+    (upper bound) 를 모두 검증.
+    """
     from graphlm.neuron.growth import add_attn_smooth_start
 
     torch.manual_seed(0)
@@ -75,11 +80,13 @@ def test_add_attn_smooth_start_default_changes_output(small_cfg):
     x = torch.randint(0, small_cfg.vocab_size, (2, 8))
     with torch.no_grad():
         out_before = model(x)
-        add_attn_smooth_start(model, block_idx=0)
+        add_attn_smooth_start(model, block_idx=0)  # alpha_init=0.01 default
         out_after = model(x)
-    # alpha=0.01 → 작은 변화. atol=1e-6 으로는 통과 안 됨 (변화 존재), atol=0.5 으론 통과 (작은 변화)
-    assert not torch.allclose(out_before, out_after, atol=1e-6)
-    assert torch.allclose(out_before, out_after, atol=0.5)
+    max_diff = (out_before - out_after).abs().max().item()
+    assert max_diff > 1e-4, f"expected nonzero forward change, got max_diff={max_diff:.6f}"
+    assert max_diff < 0.1, (
+        f"change too large for small alpha_init=0.01, got max_diff={max_diff:.6f}"
+    )
 
 
 def test_add_attn_smooth_start_alpha_zero_preserves(small_cfg):
