@@ -38,6 +38,8 @@ class NeuronConfig:
     n_layers: int = 4
     # 각 block 의 초기 attention module 수
     n_init_attn: int = 1
+    # Phase 4: α 를 scalar (False, Phase 1~3 호환) 또는 per-channel vector ∈ ℝ^{hidden_dim} (True)
+    alpha_per_channel: bool = False
 
     def __post_init__(self) -> None:
         # downstream divide-by-zero / 잘못된 attention head dim 방지 위한 최소 검증
@@ -104,7 +106,9 @@ class NeuronBlock(nn.Module):
         for each attention module i: x = x + alpha_i * attn_i(ln_attn_i(x))
         x = x + alpha_ffn * ffn(ln_ffn(x))
 
-    각 attention module (= 1 노드) 는 독립적 LayerNorm + CausalSelfAttention + scalar α.
+    각 attention module (= 1 노드) 는 독립적 LayerNorm + CausalSelfAttention + α.
+    α 의 shape 은 ``NeuronConfig.alpha_per_channel`` 에 의해 결정 — scalar (False, Phase 1~3 호환)
+    또는 per-channel vector ∈ ℝ^{hidden_dim} (True, Phase 4+). broadcasting 으로 forward 동일.
     FFN 은 표준 1개 (Phase 1 scope 단순화).
     """
 
@@ -119,11 +123,27 @@ class NeuronBlock(nn.Module):
             ]
         )
         self.attn_alphas = nn.ParameterList(
-            [nn.Parameter(torch.tensor(1.0)) for _ in range(n_init_attn)]
+            [nn.Parameter(self._make_alpha(1.0)) for _ in range(n_init_attn)]
         )
         self.ln_ffn = nn.LayerNorm(cfg.hidden_dim)
         self.ffn = FFN(cfg.hidden_dim, cfg.ffn_dim, cfg.dropout)
-        self.ffn_alpha = nn.Parameter(torch.tensor(1.0))
+        self.ffn_alpha = nn.Parameter(self._make_alpha(1.0))
+
+    def _make_alpha(
+        self,
+        value: float,
+        *,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> Tensor:
+        """scalar (Phase 1~3) or per-channel vector ∈ ℝ^{hidden_dim} (Phase 4+).
+
+        device/dtype 를 명시하면 그대로 사용 (add_attn 시 기존 param 과 동기). None 이면 default
+        (__init__ 호출 — 이후 ``model.to()`` 가 일괄 이동).
+        """
+        if self.cfg.alpha_per_channel:
+            return torch.full((self.cfg.hidden_dim,), value, device=device, dtype=dtype)
+        return torch.tensor(value, device=device, dtype=dtype)
 
     @property
     def n_attn(self) -> int:
@@ -138,7 +158,11 @@ class NeuronBlock(nn.Module):
         return x + self.ffn_alpha * self.ffn(self.ln_ffn(x))
 
     def add_attn(self, *, residual_scale: float = 0.0, init_std: float | None = None) -> int:
-        """Append a new attention module (LayerNorm + CausalSelfAttention + scalar α).
+        """Append a new attention module (LayerNorm + CausalSelfAttention + α).
+
+        새 α 는 ``cfg.alpha_per_channel`` 에 따라 scalar (Phase 1~3 호환) 또는 per-channel
+        vector ∈ ℝ^{hidden_dim} (Phase 4+) 로 생성. 어느 경우든 ``residual_scale`` (float) 는
+        모든 채널에 uniform init.
 
         Args:
             residual_scale: 신규 attention 의 초기 α. function preservation 보장을 위해 default 0.0.
@@ -153,12 +177,15 @@ class NeuronBlock(nn.Module):
             for m in new_attn.modules():
                 if isinstance(m, nn.Linear):
                     nn.init.normal_(m.weight, mean=0.0, std=init_std)
-        new_alpha = nn.Parameter(torch.tensor(residual_scale))
-        device = next(self.parameters()).device
-        self.attn_lns.append(new_ln.to(device))
-        self.attns.append(new_attn.to(device))
-        # nn.ParameterList 에 추가
-        self.attn_alphas.append(new_alpha.to(device))
+        # 기존 param 의 device/dtype 와 동기 — Parameter().to(device) 가 Tensor 를 반환할 수
+        # 있는 PyTorch quirk 회피 (gemini #3296196217). _make_alpha 에 device/dtype 명시.
+        ref_param = next(self.parameters())
+        new_alpha = nn.Parameter(
+            self._make_alpha(residual_scale, device=ref_param.device, dtype=ref_param.dtype)
+        )
+        self.attn_lns.append(new_ln.to(ref_param.device))
+        self.attns.append(new_attn.to(ref_param.device))
+        self.attn_alphas.append(new_alpha)
         return len(self.attns) - 1
 
 
