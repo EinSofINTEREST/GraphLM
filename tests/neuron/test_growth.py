@@ -63,3 +63,50 @@ def test_add_attn_alpha_nonzero_changes_output(small_cfg):
         out_after = model(x)
     # alpha=1 + random init → output 변경 기대
     assert not torch.allclose(out_before, out_after, atol=1e-4)
+
+
+def test_add_attn_smooth_start_default_changes_output(small_cfg):
+    """add_attn_smooth_start (alpha_init=0.01 default) 는 작은 forward 변화 발생.
+
+    `torch.allclose` 의 atol 만 보면 큰 변화도 통과할 수 있어, scalar `max_diff` 로
+    (1) 변화가 0 이 아님 (lower bound), (2) 작은 alpha_init 에 비례해 충분히 작음
+    (upper bound) 를 모두 검증.
+    """
+    from graphlm.neuron.growth import add_attn_smooth_start
+
+    torch.manual_seed(0)
+    model = NeuronGrowingDecoder(small_cfg)
+    model.eval()
+    x = torch.randint(0, small_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_before = model(x)
+        add_attn_smooth_start(model, block_idx=0)  # alpha_init=0.01 default
+        out_after = model(x)
+    max_diff = (out_before - out_after).abs().max().item()
+    assert max_diff > 1e-4, f"expected nonzero forward change, got max_diff={max_diff:.6f}"
+    assert max_diff < 0.1, (
+        f"change too large for small alpha_init=0.01, got max_diff={max_diff:.6f}"
+    )
+
+
+def test_add_attn_smooth_start_alpha_zero_preserves(small_cfg):
+    """alpha_init=0.0 이면 function preservation (= add_attn_function_preserving 동등)."""
+    from graphlm.neuron.growth import add_attn_smooth_start
+
+    torch.manual_seed(0)
+    model = NeuronGrowingDecoder(small_cfg)
+    model.eval()
+    x = torch.randint(0, small_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_before = model(x)
+        add_attn_smooth_start(model, block_idx=0, alpha_init=0.0)
+        out_after = model(x)
+    assert torch.allclose(out_before, out_after, atol=1e-6)
+
+
+def test_add_attn_smooth_start_negative_raises(small_cfg):
+    from graphlm.neuron.growth import add_attn_smooth_start
+
+    model = NeuronGrowingDecoder(small_cfg)
+    with pytest.raises(ValueError, match="alpha_init"):
+        add_attn_smooth_start(model, block_idx=0, alpha_init=-0.01)

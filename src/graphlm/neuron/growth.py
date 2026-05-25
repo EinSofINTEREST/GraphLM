@@ -23,3 +23,31 @@ def add_attn_function_preserving(model: NeuronGrowingDecoder, block_idx: int) ->
         새 attention 의 within-block index.
     """
     return model.add_attn(block_idx, residual_scale=0.0)
+
+
+def add_attn_smooth_start(
+    model: NeuronGrowingDecoder, block_idx: int, alpha_init: float = 0.01
+) -> int:
+    """Add a new attention module with a nonzero ``alpha_init`` for dead-block avoidance.
+
+    주어진 block 에 새 attention 추가 — α=alpha_init (nonzero) 으로 init. Phase 1 의
+    dead block 회피를 위한 옵션 D. α=0 의 function preservation 을 약간 양보 (추가 직후
+    작은 forward 변화 = 작은 loss spike) 하는 대신 추가 attn 의 weight 가 처음부터
+    의미 있는 gradient flow 받음 → α 0 갇힘 회피 가능성 확보.
+
+    Args:
+        model: target NeuronGrowingDecoder.
+        block_idx: target block index (0-based).
+        alpha_init: initial α for the new attention (default 0.01).
+            0.0 falls back to function-preserving behavior identical to
+            ``add_attn_function_preserving``.
+
+    Returns:
+        Within-block index of the new attention module.
+
+    Raises:
+        ValueError: when ``alpha_init`` is negative.
+    """
+    if alpha_init < 0:
+        raise ValueError(f"alpha_init must be >= 0, got {alpha_init}")
+    return model.add_attn(block_idx, residual_scale=alpha_init)
