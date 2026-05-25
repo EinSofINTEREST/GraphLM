@@ -34,10 +34,10 @@ class NeuronConfig:
     ffn_dim: int = 1024
     max_seq_len: int = 512
     dropout: float = 0.0
+    # block 수 (고정)
     n_layers: int = 4
-    """block 수 (고정)."""
+    # 각 block 의 초기 attention module 수
     n_init_attn: int = 1
-    """각 block 의 초기 attention module 수."""
 
 
 class CausalSelfAttention(nn.Module):
@@ -111,8 +111,11 @@ class NeuronBlock(nn.Module):
         return len(self.attns)
 
     def forward(self, x: Tensor) -> Tensor:
+        # parallel: 모든 attention module 이 *같은* 입력 (attn_input) 에서 계산.
+        # block 내부 depth 가 늘어나지 않고 width-like (head-level parallel) 의미 유지.
+        attn_input = x
         for ln, attn, alpha in zip(self.attn_lns, self.attns, self.attn_alphas, strict=True):
-            x = x + alpha * attn(ln(x))
+            x = x + alpha * attn(ln(attn_input))
         return x + self.ffn_alpha * self.ffn(self.ln_ffn(x))
 
     def add_attn(self, *, residual_scale: float = 0.0, init_std: float | None = None) -> int:
