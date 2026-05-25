@@ -38,6 +38,8 @@ class NeuronConfig:
     n_layers: int = 4
     # 각 block 의 초기 attention module 수
     n_init_attn: int = 1
+    # Phase 4: α 를 scalar (False, Phase 1~3 호환) 또는 per-channel vector ∈ ℝ^{hidden_dim} (True)
+    alpha_per_channel: bool = False
 
     def __post_init__(self) -> None:
         # downstream divide-by-zero / 잘못된 attention head dim 방지 위한 최소 검증
@@ -104,7 +106,9 @@ class NeuronBlock(nn.Module):
         for each attention module i: x = x + alpha_i * attn_i(ln_attn_i(x))
         x = x + alpha_ffn * ffn(ln_ffn(x))
 
-    각 attention module (= 1 노드) 는 독립적 LayerNorm + CausalSelfAttention + scalar α.
+    각 attention module (= 1 노드) 는 독립적 LayerNorm + CausalSelfAttention + α.
+    α 의 shape 은 ``NeuronConfig.alpha_per_channel`` 에 의해 결정 — scalar (False, Phase 1~3 호환)
+    또는 per-channel vector ∈ ℝ^{hidden_dim} (True, Phase 4+). broadcasting 으로 forward 동일.
     FFN 은 표준 1개 (Phase 1 scope 단순화).
     """
 
@@ -119,11 +123,17 @@ class NeuronBlock(nn.Module):
             ]
         )
         self.attn_alphas = nn.ParameterList(
-            [nn.Parameter(torch.tensor(1.0)) for _ in range(n_init_attn)]
+            [nn.Parameter(self._make_alpha(1.0)) for _ in range(n_init_attn)]
         )
         self.ln_ffn = nn.LayerNorm(cfg.hidden_dim)
         self.ffn = FFN(cfg.hidden_dim, cfg.ffn_dim, cfg.dropout)
-        self.ffn_alpha = nn.Parameter(torch.tensor(1.0))
+        self.ffn_alpha = nn.Parameter(self._make_alpha(1.0))
+
+    def _make_alpha(self, value: float) -> Tensor:
+        """scalar (Phase 1~3) or per-channel vector ∈ ℝ^{hidden_dim} (Phase 4+)."""
+        if self.cfg.alpha_per_channel:
+            return torch.full((self.cfg.hidden_dim,), value)
+        return torch.tensor(value)
 
     @property
     def n_attn(self) -> int:
@@ -153,7 +163,7 @@ class NeuronBlock(nn.Module):
             for m in new_attn.modules():
                 if isinstance(m, nn.Linear):
                     nn.init.normal_(m.weight, mean=0.0, std=init_std)
-        new_alpha = nn.Parameter(torch.tensor(residual_scale))
+        new_alpha = nn.Parameter(self._make_alpha(residual_scale))
         device = next(self.parameters()).device
         self.attn_lns.append(new_ln.to(device))
         self.attns.append(new_attn.to(device))

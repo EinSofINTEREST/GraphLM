@@ -115,3 +115,89 @@ def test_config_validation_rejects_zero(field, value, match):
 def test_config_validation_hidden_dim_not_divisible():
     with pytest.raises(ValueError, match="divisible"):
         NeuronConfig(vocab_size=32, hidden_dim=65, n_heads=2)
+
+
+# ---------- Phase 4: per-channel α ---------- #
+
+
+@pytest.fixture
+def per_channel_cfg():
+    return NeuronConfig(
+        vocab_size=32,
+        hidden_dim=64,
+        n_heads=2,
+        ffn_dim=128,
+        max_seq_len=16,
+        n_layers=2,
+        n_init_attn=1,
+        alpha_per_channel=True,
+    )
+
+
+def test_per_channel_alpha_shape_at_init(per_channel_cfg):
+    model = NeuronGrowingDecoder(per_channel_cfg)
+    for block in model.blocks:
+        assert block.attn_alphas[0].shape == (per_channel_cfg.hidden_dim,)
+        assert block.ffn_alpha.shape == (per_channel_cfg.hidden_dim,)
+
+
+def test_per_channel_alpha_shape_after_add(per_channel_cfg):
+    model = NeuronGrowingDecoder(per_channel_cfg)
+    model.add_attn(0, residual_scale=0.10)
+    new_alpha = model.blocks[0].attn_alphas[-1]
+    assert new_alpha.shape == (per_channel_cfg.hidden_dim,)
+    assert torch.allclose(new_alpha, torch.full((per_channel_cfg.hidden_dim,), 0.10))
+
+
+def test_per_channel_alpha_zero_preserves_function(per_channel_cfg):
+    """α=0 vector init → forward 불변 (function preservation 채널 단위로도 보장)."""
+    torch.manual_seed(0)
+    model = NeuronGrowingDecoder(per_channel_cfg)
+    model.eval()
+    x = torch.randint(0, per_channel_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_before = model(x)
+        model.add_attn(0, residual_scale=0.0)
+        out_after = model(x)
+    assert torch.allclose(out_before, out_after, atol=1e-6)
+
+
+def test_per_channel_alpha_equivalent_to_scalar_at_uniform_init(per_channel_cfg):
+    """모든 채널이 같은 값이면 scalar α 와 forward 결과 동일 — broadcasting 수학적 등가 sanity."""
+    torch.manual_seed(0)
+    scalar_cfg = NeuronConfig(
+        vocab_size=per_channel_cfg.vocab_size,
+        hidden_dim=per_channel_cfg.hidden_dim,
+        n_heads=per_channel_cfg.n_heads,
+        ffn_dim=per_channel_cfg.ffn_dim,
+        max_seq_len=per_channel_cfg.max_seq_len,
+        n_layers=per_channel_cfg.n_layers,
+        n_init_attn=per_channel_cfg.n_init_attn,
+        alpha_per_channel=False,
+    )
+    torch.manual_seed(0)
+    m_scalar = NeuronGrowingDecoder(scalar_cfg)
+    torch.manual_seed(0)
+    m_per = NeuronGrowingDecoder(per_channel_cfg)
+    # 같은 시드로 같은 weight init — α 만 shape 다름 (둘 다 1.0 으로 init 되어 broadcasting 결과 동일)
+    m_scalar.eval()
+    m_per.eval()
+    x = torch.randint(0, scalar_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out_scalar = m_scalar(x)
+        out_per = m_per(x)
+    assert torch.allclose(out_scalar, out_per, atol=1e-6)
+
+
+def test_per_channel_n_params_delta(per_channel_cfg):
+    model = NeuronGrowingDecoder(per_channel_cfg)
+    before = model.n_params
+    model.add_attn(0)
+    after = model.n_params
+    expected_delta = (
+        2 * per_channel_cfg.hidden_dim  # LN weight + bias
+        + per_channel_cfg.hidden_dim * 3 * per_channel_cfg.hidden_dim  # qkv
+        + per_channel_cfg.hidden_dim * per_channel_cfg.hidden_dim  # out
+        + per_channel_cfg.hidden_dim  # per-channel alpha (= hidden_dim instead of +1)
+    )
+    assert after - before == expected_delta
