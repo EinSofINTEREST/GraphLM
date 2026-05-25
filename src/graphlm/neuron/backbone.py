@@ -43,6 +43,10 @@ class NeuronConfig:
     # Phase 6: α 를 위치의 함수 α(t)[c] = a_c·sin(t·ω_c) + b_c 로 정의 (SinusoidalAlpha).
     # alpha_per_channel 과 동시 True 불가 — exclusive.
     alpha_positional: bool = False
+    # Phase 7: SinusoidalAlpha 의 amplitude 초기값 (alpha_positional=True 시에만 의미).
+    # 기본 0.0 (Phase 6 호환). nonzero 면 amplitude 의 vanishing gradient 회피 — Phase 2 sweet
+    # spot 교훈을 amplitude 에 재적용. init_bias 는 add_attn 의 residual_scale 로 별도 결정.
+    alpha_positional_init_amp: float = 0.0
 
     def __post_init__(self) -> None:
         # downstream divide-by-zero / 잘못된 attention head dim 방지 위한 최소 검증
@@ -220,14 +224,14 @@ class NeuronBlock(nn.Module):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> SinusoidalAlpha:
-        """Phase 6: ``init_amp=0, init_bias=value`` — sweet spot 등가 init.
+        """Phase 6/7: ``init_amp=cfg.alpha_positional_init_amp, init_bias=value``.
 
-        amplitude 가 0 으로 시작하므로 init 시점 forward 는 per-channel α=value 와 동일.
-        학습이 amplitude 를 키워 position dependency 가 emerge.
+        - Phase 6 기본 (`init_amp=0.0`): forward 시점 α(t) = value ∀t (per-channel 등가)
+        - Phase 7 (`init_amp` nonzero): amplitude 가 gradient flow 받음 → 학습 활성화
         """
         return SinusoidalAlpha(
             self.cfg.hidden_dim,
-            init_amp=0.0,
+            init_amp=self.cfg.alpha_positional_init_amp,
             init_bias=value,
             device=device,
             dtype=dtype,

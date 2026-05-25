@@ -317,3 +317,56 @@ def test_config_validation_mutually_exclusive_alpha_modes():
             alpha_per_channel=True,
             alpha_positional=True,
         )
+
+
+# ---------- Phase 7: amplitude smooth-start ---------- #
+
+
+def test_positional_init_amp_default_zero():
+    """기본 alpha_positional_init_amp=0.0 — Phase 6 호환 (amplitude=0 시작)."""
+    cfg = NeuronConfig(
+        vocab_size=32,
+        hidden_dim=64,
+        n_heads=2,
+        ffn_dim=128,
+        max_seq_len=16,
+        n_layers=2,
+        n_init_attn=1,
+        alpha_positional=True,
+    )
+    model = NeuronGrowingDecoder(cfg)
+    for block in model.blocks:
+        for alpha_mod in block.attn_alphas:
+            assert torch.allclose(alpha_mod.amplitude, torch.zeros_like(alpha_mod.amplitude))
+
+
+def test_positional_init_amp_nonzero_applied_to_init_and_add():
+    """alpha_positional_init_amp=v 시 init 시점 + add_attn 후 모두 amplitude=v 로 채워짐."""
+    init_amp = 0.05
+    cfg = NeuronConfig(
+        vocab_size=32,
+        hidden_dim=64,
+        n_heads=2,
+        ffn_dim=128,
+        max_seq_len=16,
+        n_layers=2,
+        n_init_attn=1,
+        alpha_positional=True,
+        alpha_positional_init_amp=init_amp,
+    )
+    model = NeuronGrowingDecoder(cfg)
+    # init 시점 — 모든 attn / ffn alpha 의 amplitude 가 init_amp
+    for block in model.blocks:
+        for alpha_mod in block.attn_alphas:
+            assert torch.allclose(
+                alpha_mod.amplitude, torch.full_like(alpha_mod.amplitude, init_amp)
+            )
+        assert torch.allclose(
+            block.ffn_alpha.amplitude, torch.full_like(block.ffn_alpha.amplitude, init_amp)
+        )
+    # add_attn 후 — 신규 alpha 도 amplitude=init_amp
+    model.add_attn(0, residual_scale=0.10)
+    new_alpha = model.blocks[0].attn_alphas[-1]
+    assert torch.allclose(new_alpha.amplitude, torch.full_like(new_alpha.amplitude, init_amp))
+    # bias 는 residual_scale=0.10 으로 별도 설정
+    assert torch.allclose(new_alpha.bias, torch.full_like(new_alpha.bias, 0.10))
