@@ -6,11 +6,12 @@ Attention module 단위의 dynamic add + learnable α. 기존 `graphlm.models` (
 """
 
 from graphlm.neuron.backbone import NeuronBlock, NeuronConfig, NeuronGrowingDecoder
-from graphlm.neuron.growth import add_attn_function_preserving
+from graphlm.neuron.growth import add_attn_function_preserving, add_attn_smooth_start
 
 __all__ = [
     "NeuronBlock",
     "NeuronConfig",
     "NeuronGrowingDecoder",
     "add_attn_function_preserving",
+    "add_attn_smooth_start",
 ]
