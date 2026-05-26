@@ -202,9 +202,22 @@ class GrowableLayerNorm(nn.Module):
 
     expand 시: weight 새 entries = 1.0, bias 새 entries = 0.0 (affine 파라미터는 identity-style init).
 
-    **주의** (Copilot #3300394745): LayerNorm 은 마지막 dim 전체의 mean/var 로 정규화하므로 dim
-    을 추가하면 새 dim 이 0 이더라도 *기존 dim 의 정규화 통계* 가 일반적으로 바뀌어 출력이
-    엄밀히 동일하지 않다. 본 expand 가 보장하는 것은 affine 파라미터의 identity-style init 뿐.
+    **중대한 제약** (Copilot #3300394745, CodeRabbit #3300404774):
+
+    LayerNorm 은 마지막 dim 전체의 mean/var 로 정규화하므로 dim 을 추가하면 새 dim 입력이 0
+    이더라도 *기존 dim 의 정규화 통계가 바뀌어* 출력이 엄밀히 동일하지 않다. 예: 16-dim 의
+    Gaussian 입력에 0-tail 4-dim 을 붙여 20-dim 으로 LN 하면 기존 16-dim 결과 대비 max abs
+    drift ≈ 0.21. 따라서:
+
+    - 본 ``expand`` 가 보장하는 것 = **affine 파라미터의 identity-style init 뿐**.
+    - 전체 function preservation 을 위해서는 별도 전략 필요 (Phase 9+ scope):
+      * **active vs total channels 분리** — total capacity 만 늘리고 operative normalization 은
+        active 만 유지, 명시적 ``activate(delta)`` 호출 시에만 통계 포함
+      * **RMSNorm 대체** — per-channel scale 만 사용해 mean/var coupling 회피
+      * **분리 정규화** — 기존/신규 channel 그룹별 독립 LN
+
+    Phase 8 foundation 의 의도는 *expansion 메커니즘 자체의 검증* 이므로 본 한계는 알려진
+    trade-off 로 수용 + 노트북에서 정량 관찰.
     """
 
     def __init__(self, normalized_shape: int, eps: float = 1e-5):
