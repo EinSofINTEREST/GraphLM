@@ -44,8 +44,9 @@ GraphLM/
 │   └── config/         # 실험 설정
 ├── notebooks/          # Jupyter 실험 노트북
 │   ├── 00-exploration/
-│   ├── 10-experiments/
-│   └── 20-analysis/
+│   ├── 01-experiments/
+│   ├── 02-function-level/
+│   └── 03-analysis/
 ├── tests/              # pytest (src/graphlm/ 미러링)
 ├── data/               # 실험 데이터 (gitignore)
 ├── docs/               # CI / 한국어 문서
@@ -101,7 +102,7 @@ make help             # 모든 타겟 표시
 uv run jupyter lab
 
 # 또는 노트북을 스크립트로 실행
-uv run jupyter nbconvert --to notebook --execute notebooks/10-experiments/<파일>.ipynb
+uv run jupyter nbconvert --to notebook --execute notebooks/01-experiments/<파일>.ipynb
 ```
 
 ### VS Code / Cursor 에서 노트북 열기
