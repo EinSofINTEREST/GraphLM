@@ -200,7 +200,11 @@ def test_pruned_edges_do_not_resurrect_via_gradient():
     """pruned edge 의 weight/adj gradient 가 정확히 0 — optimizer 가 살릴 수 없음."""
     torch.manual_seed(0)
     lin = HybridGraphLinear(
-        16, 16, group_size=4, adj_outer_init="uniform_around_one", adj_inner_init="uniform_around_one"
+        16,
+        16,
+        group_size=4,
+        adj_outer_init="uniform_around_one",
+        adj_inner_init="uniform_around_one",
     )
     threshold = float(lin.effective_edge_magnitude().median().item())
     lin.prune_by_magnitude(threshold)

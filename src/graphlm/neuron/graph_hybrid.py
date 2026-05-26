@@ -222,9 +222,8 @@ class HybridGraphLinear(nn.Module):
         """
         with torch.no_grad():
             return (
-                (self.adj_outer.unsqueeze(-1).unsqueeze(-1) * self.adj_inner * self.weight).abs()
-                * self.edge_mask
-            )
+                self.adj_outer.unsqueeze(-1).unsqueeze(-1) * self.adj_inner * self.weight
+            ).abs() * self.edge_mask
 
     def prune_by_magnitude(self, threshold: float) -> int:
         """edge magnitude < threshold 인 위치를 영구 prune (mask=0).
