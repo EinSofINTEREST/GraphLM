@@ -16,6 +16,13 @@ from graphlm.neuron.graph_group import GroupGraphLinear
 from graphlm.neuron.graph_hybrid import HybridGraphLinear
 from graphlm.neuron.growable import GrowableEmbedding, GrowableLayerNorm, GrowableLinear
 from graphlm.neuron.growth import add_attn_function_preserving, add_attn_smooth_start
+from graphlm.neuron.hybrid_transformer import (
+    HybridGraphFFN,
+    HybridGraphTransformerBlock,
+    PlainTransformerBlock,
+    make_block,
+)
+from graphlm.neuron.rms_norm import RMSNorm
 
 __all__ = [
     "ChannelGraphLinear",
@@ -23,11 +30,16 @@ __all__ = [
     "GrowableEmbedding",
     "GrowableLayerNorm",
     "GrowableLinear",
+    "HybridGraphFFN",
     "HybridGraphLinear",
+    "HybridGraphTransformerBlock",
     "NeuronBlock",
     "NeuronConfig",
     "NeuronGrowingDecoder",
+    "PlainTransformerBlock",
+    "RMSNorm",
     "SinusoidalAlpha",
     "add_attn_function_preserving",
     "add_attn_smooth_start",
+    "make_block",
 ]
