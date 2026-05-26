@@ -144,10 +144,17 @@ def train_hybrid_graph_mlp(
 
     final_adj = None
     if arch != "plain":
-        fc1 = model.fc1
+        # graph_group_demo / graph_channel_demo 와 동일한 {"fc1": ..., "fc2": ...} 계층 구조 —
+        # 공통 후처리/시각화 재사용 가능 (Copilot #3302306899). hybrid 는 fc1/fc2 각자 outer/inner.
         final_adj = {
-            "outer": fc1.adj_outer.detach().cpu().clone(),
-            "inner": fc1.adj_inner.detach().cpu().clone(),
+            "fc1": {
+                "outer": model.fc1.adj_outer.detach().cpu().clone(),
+                "inner": model.fc1.adj_inner.detach().cpu().clone(),
+            },
+            "fc2": {
+                "outer": model.fc2.adj_outer.detach().cpu().clone(),
+                "inner": model.fc2.adj_inner.detach().cpu().clone(),
+            },
         }
     return {
         "losses": losses,

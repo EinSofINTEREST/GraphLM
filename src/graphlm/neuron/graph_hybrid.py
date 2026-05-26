@@ -167,12 +167,14 @@ class HybridGraphLinear(nn.Module):
             raise ValueError(f"expected last dim {self.in_features}, got {in_f}")
         x_g = x.reshape(*batch, self.n_groups_in, self.group_size)
 
-        # effective inner weight: (G_out, G_in, k, k) = adj_inner * W
-        eff_w = self.adj_inner * self.weight
-        # block matmul: contrib[..., go, gi, k_out] = Σ_{k_in} x_g[..., gi, k_in] · eff_w[go, gi, k_in, k_out]
-        contrib = torch.einsum("...gi,Ggik->...Ggk", x_g, eff_w)
-        # outer adj-weighted sum over input groups: y[..., go, :] = Σ_gi adj_outer[go, gi] · contrib[..., go, gi, :]
-        y_g = torch.einsum("Gg,...Ggk->...Gk", self.adj_outer, contrib)
+        # 메모리 효율 최적화 (gemini #3302293739): adj_outer 와 adj_inner 를 weight 수준에서
+        # 미리 결합 → (*batch, G_out, G_in, k) 의 큰 intermediate tensor 회피.
+        # 수학적 등치: contrib[..., go, gi, ko] = Σ_ki adj_inner[go,gi,ki,ko] · W[go,gi,ki,ko] · x_g[..., gi, ki]
+        #              y[..., go, ko]         = Σ_gi adj_outer[go, gi] · contrib[..., go, gi, ko]
+        #                                     = Σ_gi Σ_ki (adj_outer · adj_inner · W)[...] · x_g[..., gi, ki]
+        eff_w = self.adj_outer.unsqueeze(-1).unsqueeze(-1) * self.adj_inner * self.weight
+        # single einsum — output (*batch, G_out, k), 중간 (*batch, G_out, G_in, k) 텐서 없음
+        y_g = torch.einsum("...gi,Ggik->...Gk", x_g, eff_w)
         # flatten back to (..., out_features)
         y = y_g.reshape(*batch, self.out_features)
         if self.bias is not None:
