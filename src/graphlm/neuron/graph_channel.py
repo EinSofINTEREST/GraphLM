@@ -38,7 +38,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-AdjInit = Literal["full", "uniform_small"]
+AdjInit = Literal["full", "uniform_small", "uniform_around_one"]
 
 
 class ChannelGraphLinear(nn.Module):
@@ -47,10 +47,13 @@ class ChannelGraphLinear(nn.Module):
     Args:
         in_features: 입력 채널 수 (graph 의 in-nodes).
         out_features: 출력 채널 수 (graph 의 out-nodes).
-        adj_init: ``"full"`` (모두 1, function preserving) 또는 ``"uniform_small"``
-            (uniform[0.05, 0.15], Phase 2 sweet spot 패턴). ``"zero"`` 등 0-init 옵션은
-            거부 (rationale: Phase 9 결과 PR #60 — block-diagonal sparse 시작이 +0.14 loss
-            열위, vanishing gradient 함정).
+        adj_init: 선택지 (memory: feedback_no_zero_init.md 의 0-init 금지 + magnitude rule):
+            - ``"full"`` — 모두 1 (function preserving, standard Linear 와 forward 동치)
+            - ``"uniform_around_one"`` — uniform[0.95, 1.05] (1.0 근처 small noise,
+              weight multiplier 의 적정 magnitude + 0-init 회피 + adj 학습 활성, Phase 11+ 권장)
+            - ``"uniform_small"`` — uniform[0.05, 0.15] (Phase 2 residual-gate sweet spot 패턴,
+              **anti-pattern** — weight multiplier 위치엔 magnitude 가 작아 +0.18 열위, Phase 10 실측)
+            - ❌ ``"zero"`` — 거부 (Phase 1/7/9 vanishing 함정 3차 재현, rationale: PR #60)
         bias: bias 사용 여부 (standard Linear 동일).
 
     Forward:
@@ -79,12 +82,18 @@ class ChannelGraphLinear(nn.Module):
         bound = 1.0 / math.sqrt(in_features)
         nn.init.uniform_(self.weight, -bound, bound)
 
-        # adj init — 0-init 거부 (feedback_no_zero_init.md)
+        # adj init — 0-init 거부 + magnitude rule (memory: feedback_no_zero_init.md)
         if adj_init == "full":
             adj = torch.ones(out_features, in_features)
         elif adj_init == "uniform_small":
-            # Phase 2 sweet spot (0.10) ± δ — gradient flow 확보 + edge importance 학습 시작
+            # Phase 2 residual-gate sweet spot (0.10) ± δ — *주의*: weight multiplier 위치에는
+            # magnitude rule 위반 (effective_w 가 10% scale 로 줄어 +0.18 열위, Phase 10 발견).
+            # 유지 이유: ablation 비교용 / 명시적 anti-pattern 데모.
             adj = torch.empty(out_features, in_features).uniform_(0.05, 0.15)
+        elif adj_init == "uniform_around_one":
+            # Phase 11 scale-corrected: weight multiplier 의 적정 magnitude ≈ 1.0 + small noise
+            # (memory: feedback_no_zero_init.md 의 magnitude rule). 0-init 회피 + scale 균형.
+            adj = torch.empty(out_features, in_features).uniform_(0.95, 1.05)
         elif adj_init in {"zero", "zeros"}:
             raise ValueError(
                 f"adj_init={adj_init!r} 는 금지됨 — 0-init 은 vanishing gradient 함정 "

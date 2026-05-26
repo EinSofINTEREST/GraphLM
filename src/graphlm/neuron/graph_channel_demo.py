@@ -23,7 +23,7 @@ from graphlm.data.tinyshakespeare import TinyShakespeareDataset, iter_random_bat
 from graphlm.neuron.graph_channel import ChannelGraphLinear
 from graphlm.utils import set_seed
 
-Arch = Literal["plain", "channel_full", "channel_uniform_small"]
+Arch = Literal["plain", "channel_full", "channel_uniform_small", "channel_uniform_around_one"]
 
 
 class ChannelGraphMLPLM(nn.Module):
@@ -61,6 +61,8 @@ def _make_linear(in_f: int, out_f: int, arch: Arch) -> nn.Module:
         return ChannelGraphLinear(in_f, out_f, adj_init="full")
     if arch == "channel_uniform_small":
         return ChannelGraphLinear(in_f, out_f, adj_init="uniform_small")
+    if arch == "channel_uniform_around_one":
+        return ChannelGraphLinear(in_f, out_f, adj_init="uniform_around_one")
     raise ValueError(f"unknown arch: {arch}")
 
 

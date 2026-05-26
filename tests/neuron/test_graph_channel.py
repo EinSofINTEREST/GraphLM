@@ -30,6 +30,37 @@ def test_uniform_small_adj_init_range():
     assert lin.adj.std() > 0.01
 
 
+def test_uniform_around_one_adj_init_range():
+    """adj_init='uniform_around_one' → uniform[0.95, 1.05] (Phase 11 scale-corrected)."""
+    torch.manual_seed(0)
+    lin = ChannelGraphLinear(8, 16, adj_init="uniform_around_one")
+    assert (lin.adj >= 0.95).all() and (lin.adj <= 1.05).all()
+    # mean 이 ≈1.0 근처 (scale 균형 — weight multiplier 의 적정 magnitude)
+    assert abs(lin.adj.mean().item() - 1.0) < 0.05
+    # 분포 spread (degenerate 거부)
+    assert lin.adj.std() > 0.005
+
+
+def test_uniform_around_one_function_preservation_approximate():
+    """uniform_around_one 은 정확히 동치는 아니지만 (noise ±0.05), magnitude balance 는 standard Linear 수준.
+
+    구체: |effective_w| 의 mean 이 |W| mean 과 ±10% 이내 (vs uniform_small 은 ~10x 작음).
+    """
+    torch.manual_seed(0)
+    cg = ChannelGraphLinear(64, 128, adj_init="uniform_around_one")
+    effective = cg.adj * cg.weight
+    # |effective_w| mean 이 |W| mean 의 ~1.0 배 ± 10%
+    ratio = effective.abs().mean().item() / cg.weight.abs().mean().item()
+    assert 0.9 < ratio < 1.1
+
+    # 대조: uniform_small 은 ratio ~0.10 (10% 수준)
+    torch.manual_seed(0)
+    cg_small = ChannelGraphLinear(64, 128, adj_init="uniform_small")
+    effective_small = cg_small.adj * cg_small.weight
+    ratio_small = effective_small.abs().mean().item() / cg_small.weight.abs().mean().item()
+    assert ratio_small < 0.2  # ~0.10 으로 훨씬 작음
+
+
 @pytest.mark.parametrize("bad_init", ["zero", "zeros"])
 def test_zero_init_rejected(bad_init):
     """0-init 옵션 명시적 거부 — Phase 1/7/9 의 vanishing gradient 함정 회피."""
