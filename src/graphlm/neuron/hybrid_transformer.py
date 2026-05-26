@@ -23,6 +23,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from graphlm.neuron.backbone import CausalSelfAttention
+from graphlm.neuron.graph_attention import HybridGraphCausalSelfAttention
 from graphlm.neuron.graph_hybrid import AdjInnerInit, AdjOuterInit, HybridGraphLinear
 from graphlm.neuron.rms_norm import RMSNorm
 
@@ -165,6 +166,53 @@ class PlainTransformerBlock(nn.Module):
         return x + self.ffn(self.rms2(x))
 
 
+class FullGraphTransformerBlock(nn.Module):
+    """Phase 14 — attention + FFN 둘 다 HybridGraphLinear 인 full graph block.
+
+    Phase 13 의 ``HybridGraphTransformerBlock`` (FFN-only graph) 와 동일 forward 구조이되,
+    ``CausalSelfAttention`` (표준 nn.Linear) 대신 ``HybridGraphCausalSelfAttention``
+    (qkv + out 도 HybridGraphLinear) 사용. **block 내 모든 Linear 가 graph**.
+
+    adj_outer_init 의 ``"identity"`` 는 qkv (rectangular) + FFN fc1 (rectangular) 둘 다
+    rejection 하므로 사용 불가.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        n_heads: int,
+        ffn_dim: int,
+        group_size: int,
+        *,
+        adj_outer_init: AdjOuterInit = "full",
+        adj_inner_init: AdjInnerInit = "full",
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.rms1 = RMSNorm(hidden_dim)
+        self.attn = HybridGraphCausalSelfAttention(
+            hidden_dim,
+            n_heads,
+            group_size=group_size,
+            adj_outer_init=adj_outer_init,
+            adj_inner_init=adj_inner_init,
+            dropout=dropout,
+        )
+        self.rms2 = RMSNorm(hidden_dim)
+        self.ffn = HybridGraphFFN(
+            hidden_dim,
+            ffn_dim,
+            group_size=group_size,
+            adj_outer_init=adj_outer_init,
+            adj_inner_init=adj_inner_init,
+            dropout=dropout,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = x + self.attn(self.rms1(x))
+        return x + self.ffn(self.rms2(x))
+
+
 def make_block(
     arch: Arch,
     hidden_dim: int,
@@ -198,6 +246,54 @@ def make_block(
         )
     if arch == "hybrid_around_one_around_one":
         return HybridGraphTransformerBlock(
+            hidden_dim,
+            n_heads,
+            ffn_dim,
+            group_size=group_size,
+            adj_outer_init="uniform_around_one",
+            adj_inner_init="uniform_around_one",
+            dropout=dropout,
+        )
+    raise ValueError(f"unknown arch: {arch}")
+
+
+def make_full_block(
+    arch: Arch,
+    hidden_dim: int,
+    n_heads: int,
+    ffn_dim: int,
+    group_size: int,
+    dropout: float = 0.0,
+) -> nn.Module:
+    """4 가지 arch 중 하나로 Phase 14 **full graph** Transformer block 생성.
+
+    Phase 13 ``make_block`` 과 동일 arch literal 이되, hybrid_* 는 attention 도 graph 화.
+    plain 은 Phase 13 와 동일 (PlainTransformerBlock).
+    """
+    if arch == "plain":
+        return PlainTransformerBlock(hidden_dim, n_heads, ffn_dim, dropout=dropout)
+    if arch == "hybrid_full_full":
+        return FullGraphTransformerBlock(
+            hidden_dim,
+            n_heads,
+            ffn_dim,
+            group_size=group_size,
+            adj_outer_init="full",
+            adj_inner_init="full",
+            dropout=dropout,
+        )
+    if arch == "hybrid_full_around_one":
+        return FullGraphTransformerBlock(
+            hidden_dim,
+            n_heads,
+            ffn_dim,
+            group_size=group_size,
+            adj_outer_init="full",
+            adj_inner_init="uniform_around_one",
+            dropout=dropout,
+        )
+    if arch == "hybrid_around_one_around_one":
+        return FullGraphTransformerBlock(
             hidden_dim,
             n_heads,
             ffn_dim,

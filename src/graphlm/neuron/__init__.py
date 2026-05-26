@@ -11,25 +11,30 @@ from graphlm.neuron.backbone import (
     NeuronGrowingDecoder,
     SinusoidalAlpha,
 )
+from graphlm.neuron.graph_attention import HybridGraphCausalSelfAttention
 from graphlm.neuron.graph_channel import ChannelGraphLinear
 from graphlm.neuron.graph_group import GroupGraphLinear
 from graphlm.neuron.graph_hybrid import HybridGraphLinear
 from graphlm.neuron.growable import GrowableEmbedding, GrowableLayerNorm, GrowableLinear
 from graphlm.neuron.growth import add_attn_function_preserving, add_attn_smooth_start
 from graphlm.neuron.hybrid_transformer import (
+    FullGraphTransformerBlock,
     HybridGraphFFN,
     HybridGraphTransformerBlock,
     PlainTransformerBlock,
     make_block,
+    make_full_block,
 )
 from graphlm.neuron.rms_norm import RMSNorm
 
 __all__ = [
     "ChannelGraphLinear",
+    "FullGraphTransformerBlock",
     "GroupGraphLinear",
     "GrowableEmbedding",
     "GrowableLayerNorm",
     "GrowableLinear",
+    "HybridGraphCausalSelfAttention",
     "HybridGraphFFN",
     "HybridGraphLinear",
     "HybridGraphTransformerBlock",
@@ -42,4 +47,5 @@ __all__ = [
     "add_attn_function_preserving",
     "add_attn_smooth_start",
     "make_block",
+    "make_full_block",
 ]
