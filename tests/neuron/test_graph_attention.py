@@ -88,7 +88,10 @@ def test_zero_init_outer_rejected(bad):
     """0-init outer 거부 — underlying HybridGraphLinear 로부터 상속."""
     with pytest.raises(ValueError, match="vanishing"):
         HybridGraphCausalSelfAttention(
-            hidden_dim=32, n_heads=4, group_size=8, adj_outer_init=bad  # type: ignore[arg-type]
+            hidden_dim=32,
+            n_heads=4,
+            group_size=8,
+            adj_outer_init=bad,  # type: ignore[arg-type]
         )
 
 
@@ -97,7 +100,10 @@ def test_zero_init_inner_rejected(bad):
     """0-init inner 거부."""
     with pytest.raises(ValueError, match="vanishing"):
         HybridGraphCausalSelfAttention(
-            hidden_dim=32, n_heads=4, group_size=8, adj_inner_init=bad  # type: ignore[arg-type]
+            hidden_dim=32,
+            n_heads=4,
+            group_size=8,
+            adj_inner_init=bad,  # type: ignore[arg-type]
         )
 
 
