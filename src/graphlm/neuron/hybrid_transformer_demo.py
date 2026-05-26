@@ -14,6 +14,7 @@ identity outer 는 Phase 13 에서 미지원 — FFN 의 rectangular 구조상 �
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
@@ -27,6 +28,37 @@ from graphlm.neuron.hybrid_transformer import (
 )
 from graphlm.neuron.rms_norm import RMSNorm
 from graphlm.utils import set_seed
+
+
+@dataclass(frozen=True)
+class HybridTransformerTrainConfig:
+    """1 run 학습에 필요한 모든 hyperparameter (CodeRabbit #3303186824 — 14 args 통합).
+
+    구조: model / data / optim / runtime 4 그룹으로 묶어서 가독성 ↑.
+    """
+
+    # data
+    dataset: TinyShakespeareDataset
+    vocab_size: int
+
+    # model
+    hidden_dim: int
+    n_heads: int
+    ffn_dim: int
+    n_layers: int
+    group_size: int
+    arch: Arch
+    dropout: float = 0.0
+
+    # train
+    block_size: int = 64
+    batch_size: int = 32
+    lr: float = 3e-4
+    max_steps: int = 1500
+
+    # runtime
+    seed: int = 0
+    device: str = "cpu"
 
 
 class HybridGraphTransformerLM(nn.Module):
@@ -110,53 +142,36 @@ def _snapshot_adj(model: HybridGraphTransformerLM) -> list[dict[str, dict[str, T
     return snapshots
 
 
-def train_hybrid_transformer_lm(
-    *,
-    dataset: TinyShakespeareDataset,
-    vocab_size: int,
-    seed: int,
-    arch: Arch,
-    hidden_dim: int,
-    n_heads: int,
-    ffn_dim: int,
-    n_layers: int,
-    group_size: int,
-    block_size: int,
-    batch_size: int,
-    lr: float,
-    max_steps: int,
-    device: str = "cpu",
-    dropout: float = 0.0,
-) -> dict:
+def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     """1 run 학습 — Phase 13 sweep unit.
 
     Returns: ``losses``, ``final_loss`` (last 100 mean), ``final_adj``
     (hybrid arch 인 경우 block 별 fc1/fc2 outer/inner snapshot list).
     """
-    set_seed(seed)
+    set_seed(config.seed)
     model = HybridGraphTransformerLM(
-        vocab_size=vocab_size,
-        hidden_dim=hidden_dim,
-        n_heads=n_heads,
-        ffn_dim=ffn_dim,
-        n_layers=n_layers,
-        max_seq_len=block_size,
-        arch=arch,
-        group_size=group_size,
-        dropout=dropout,
-    ).to(device)
+        vocab_size=config.vocab_size,
+        hidden_dim=config.hidden_dim,
+        n_heads=config.n_heads,
+        ffn_dim=config.ffn_dim,
+        n_layers=config.n_layers,
+        max_seq_len=config.block_size,
+        arch=config.arch,
+        group_size=config.group_size,
+        dropout=config.dropout,
+    ).to(config.device)
     data_iter = iter_random_batches(
-        dataset, batch_size=batch_size, block_size=block_size, seed=seed
+        config.dataset, batch_size=config.batch_size, block_size=config.block_size, seed=config.seed
     )
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
     losses: list[float] = []
     model.train()
-    for _step in range(1, max_steps + 1):
+    for _step in range(1, config.max_steps + 1):
         x, y = next(data_iter)
-        x, y = x.to(device), y.to(device)
+        x, y = x.to(config.device), y.to(config.device)
         optimizer.zero_grad()
         logits = model(x)
-        loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
+        loss = F.cross_entropy(logits.reshape(-1, config.vocab_size), y.reshape(-1))
         loss.backward()
         optimizer.step()
         losses.append(loss.item())
@@ -178,6 +193,7 @@ def count_parameters(model: nn.Module) -> int:
 
 __all__ = [
     "HybridGraphTransformerLM",
+    "HybridTransformerTrainConfig",
     "count_parameters",
     "train_hybrid_transformer_lm",
 ]
