@@ -48,7 +48,11 @@ class GroupGraphMLPLM(nn.Module):
         in_f = emb_dim * n_gram
         self.fc1 = _make_linear(in_f, hidden_dim, arch, group_size)
         self.ln = nn.LayerNorm(hidden_dim)
-        self.fc2 = _make_linear(hidden_dim, vocab_size, arch, group_size)
+        # fc2 는 hidden_dim → vocab_size (직사각형 — n_groups_out ≠ n_groups_in 가능).
+        # arch="group_identity" 의 의미는 정방에서만 정의되므로 fc2 는 항상 "full" 사용 —
+        # 비교 공정성 유지 (group_identity 비교의 차이는 fc1 에 한정) (Copilot #3301531369).
+        fc2_arch: Arch = "plain" if arch == "plain" else "group_full"
+        self.fc2 = _make_linear(hidden_dim, vocab_size, fc2_arch, group_size)
 
     def forward(self, x: Tensor) -> Tensor:
         h = self.emb(x).reshape(x.shape[0], -1)
@@ -61,8 +65,8 @@ class GroupGraphMLPLM(nn.Module):
 def _make_linear(in_f: int, out_f: int, arch: Arch, group_size: int) -> nn.Module:
     if arch == "plain":
         return nn.Linear(in_f, out_f)
-    # group_*: in_f / out_f 가 group_size 의 배수가 아니면 nearest multiple 로 pad (단순화 위해
-    # in_f / out_f 자체를 group_size 의 배수로 맞춰 사용)
+    # group_*: in_f / out_f 가 group_size 의 배수가 아니면 명시적으로 ValueError —
+    # padding 은 caller (예: 노트북 V_PADDED) 책임이며 본 함수는 검증만 (Copilot #3301531359).
     if in_f % group_size != 0 or out_f % group_size != 0:
         raise ValueError(
             f"GroupGraphMLPLM 의 in_f({in_f}) / out_f({out_f}) 는 group_size({group_size}) 의 배수여야 함"

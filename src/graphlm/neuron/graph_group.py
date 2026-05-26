@@ -27,6 +27,7 @@ Phase 10+ 에서:
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 import torch
@@ -36,6 +37,9 @@ AdjInit = Literal["full", "identity"]
 
 
 def _validate_groupable(features: int, group_size: int, name: str) -> int:
+    # group_size 자체 검증 — 0 또는 음수 시 % 에서 ZeroDivisionError / 의미 없는 결과 회피 (Copilot #3301531298)
+    if not isinstance(group_size, int) or group_size < 1:
+        raise ValueError(f"group_size must be a positive int, got {group_size!r}")
     if features % group_size != 0:
         raise ValueError(f"{name} ({features}) must be divisible by group_size ({group_size})")
     return features // group_size
@@ -85,9 +89,15 @@ class GroupGraphLinear(nn.Module):
         if adj_init == "full":
             adj = torch.ones(self.n_groups_out, self.n_groups_in)
         elif adj_init == "identity":
-            adj = torch.eye(max(self.n_groups_out, self.n_groups_in))[
-                : self.n_groups_out, : self.n_groups_in
-            ].contiguous()
+            # identity 의 의미는 정방 (n_groups_out == n_groups_in) 일 때만 명확 —
+            # 직사각형이면 일부 입력/출력 group 이 isolated 됨 (Copilot #3301531337). 명시적 거부.
+            if self.n_groups_out != self.n_groups_in:
+                raise ValueError(
+                    f"adj_init='identity' requires square (n_groups_out=={self.n_groups_in}), "
+                    f"got out={self.n_groups_out} in={self.n_groups_in}"
+                )
+            # torch.eye 는 (n, m) rectangular 직접 지원 — max+slice 보다 간결 (gemini #3301524134)
+            adj = torch.eye(self.n_groups_out, self.n_groups_in)
         else:
             raise ValueError(f"unknown adj_init: {adj_init}")
         self.adj = nn.Parameter(adj)
@@ -97,16 +107,19 @@ class GroupGraphLinear(nn.Module):
         else:
             self.register_parameter("bias", None)
 
-        # Kaiming uniform init on block weights — equivalent to standard Linear when all
-        # blocks together form the full weight matrix. fan_in 은 in_features.
-        nn.init.kaiming_uniform_(self.weight, a=5**0.5)
+        # standard nn.Linear 와 동일 스케일 init — fan_in = in_features 로 직접 계산.
+        # nn.init.kaiming_uniform_ 은 4D tensor 의 fan_in 을 잘못 계산 (n_groups_in * group_size²) —
+        # 실제 in_features (= n_groups_in × group_size) 와 다름 (gemini #3301524127 / Copilot #3301531321).
+        bound = 1.0 / math.sqrt(self.in_features)
+        nn.init.uniform_(self.weight, -bound, bound)
 
     def forward(self, x: Tensor) -> Tensor:
         # x: (..., in_features) → (..., n_groups_in, group_size)
         *batch, in_f = x.shape
         if in_f != self.in_features:
             raise ValueError(f"expected last dim {self.in_features}, got {in_f}")
-        x_g = x.view(*batch, self.n_groups_in, self.group_size)
+        # reshape (= view 호환 + non-contiguous tensor 도 안전) — Copilot #3301531355
+        x_g = x.reshape(*batch, self.n_groups_in, self.group_size)
 
         # block matmul: for each (go, gi) compute x[gi] @ W[go, gi] → (..., go, gi, group_size)
         # einsum: ...gi,Goik (G=n_groups_out, g=n_groups_in 동일 index, i=in_chans, k=out_chans)
@@ -132,9 +145,10 @@ class GroupGraphLinear(nn.Module):
         if threshold < 0:
             raise ValueError(f"threshold must be >= 0, got {threshold}")
         with torch.no_grad():
-            mask = self.adj.abs() >= threshold
-            n_zeroed = int((~mask).sum().item())
-            self.adj.mul_(mask.to(self.adj.dtype))
+            # masked_fill_ 가 mul_(mask.to(dtype)) 보다 깔끔 + 캐스팅 불필요 (gemini #3301524139)
+            zero_mask = self.adj.abs() < threshold
+            n_zeroed = int(zero_mask.sum().item())
+            self.adj.masked_fill_(zero_mask, 0.0)
         return n_zeroed
 
     def extra_repr(self) -> str:
