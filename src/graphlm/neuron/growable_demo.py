@@ -1,7 +1,7 @@
 """Phase 8 — Growable MLP language model + 학습 헬퍼 (demo orchestration용).
 
 노트북에서 함수/클래스를 직접 정의하지 말라는 `.claude/rules/06-code-style.md` 규약 준수
-(Copilot #3300394761). Phase 8 노트북 18-phase8-growable-foundations.ipynb 는 여기서 import.
+(Copilot #3300394761). Phase 8 노트북 07-phase8-growable-foundations.ipynb 는 여기서 import.
 
 - ``GrowableMLPLM``: 단순 n-gram char-LM MLP. ``hidden_dim`` 이 학습 중 확장됨.
 - ``make_ngram_iter``: TinyShakespeareDataset 의 sliding window n-gram → (input, target) iterator.
