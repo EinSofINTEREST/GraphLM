@@ -111,7 +111,7 @@ GraphLM/
 [가설] → notebooks/00-exploration/ 에서 데이터 탐색
        → src/graphlm/data/ 에 dataset 클래스 작성
        → src/graphlm/models/ 에 모델 정의
-       → notebooks/01-experiments/ 에서 학습·평가 실행 (또는 02-function-level/)
+       → notebooks/01-experiments/ 에서 학습·평가 실행 (또는 notebooks/02-function-level/)
        → src/graphlm/eval/ 메트릭 함수로 결과 측정
        → notebooks/03-analysis/ 에서 결과 분석·시각화
        → [재가설] 또는 [논문/리포트]
