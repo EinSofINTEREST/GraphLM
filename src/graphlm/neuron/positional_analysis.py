@@ -7,7 +7,26 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+
+
+def eval_positional_alpha_from_state(state: dict[str, Any], seq_len: int) -> np.ndarray:
+    """노트북에 저장된 SinusoidalAlpha state dict (tensor 또는 ndarray) 로부터 (T, hidden_dim) 평가.
+
+    각 entry 는 ``amplitude`` / ``bias`` / ``log_freq`` 키. tensor 면 ``.numpy()`` 변환 후 평가.
+    """
+
+    def _to_np(v: Any) -> np.ndarray:
+        return v.numpy() if hasattr(v, "numpy") else np.asarray(v)
+
+    return eval_positional_alpha(
+        _to_np(state["amplitude"]),
+        _to_np(state["bias"]),
+        _to_np(state["log_freq"]),
+        seq_len,
+    )
 
 
 def eval_positional_alpha(
