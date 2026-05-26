@@ -23,8 +23,10 @@ from torch import Tensor, nn
 from graphlm.data.tinyshakespeare import TinyShakespeareDataset, iter_random_batches
 from graphlm.neuron.hybrid_transformer import (
     Arch,
+    FullGraphTransformerBlock,
     HybridGraphTransformerBlock,
     make_block,
+    make_full_block,
 )
 from graphlm.neuron.rms_norm import RMSNorm
 from graphlm.utils import set_seed
@@ -49,6 +51,9 @@ class HybridTransformerTrainConfig:
     group_size: int
     arch: Arch
     dropout: float = 0.0
+    # Phase 14: True → make_full_block (attention + FFN 둘 다 graph),
+    # False → make_block (FFN-only graph, Phase 13 default)
+    use_full_graph: bool = False
 
     # train
     block_size: int = 64
@@ -80,15 +85,18 @@ class HybridGraphTransformerLM(nn.Module):
         arch: Arch,
         group_size: int,
         dropout: float = 0.0,
+        use_full_graph: bool = False,
     ):
         super().__init__()
         self.arch = arch
+        self.use_full_graph = use_full_graph
         self.max_seq_len = max_seq_len
         self.tok_emb = nn.Embedding(vocab_size, hidden_dim)
         self.pos_emb = nn.Embedding(max_seq_len, hidden_dim)
+        block_factory = make_full_block if use_full_graph else make_block
         self.blocks = nn.ModuleList(
             [
-                make_block(
+                block_factory(
                     arch,
                     hidden_dim=hidden_dim,
                     n_heads=n_heads,
@@ -114,31 +122,41 @@ class HybridGraphTransformerLM(nn.Module):
         return self.lm_head(h)
 
 
-def _block_iter(model: HybridGraphTransformerLM) -> Iterator[HybridGraphTransformerBlock]:
-    """모델의 hybrid block 만 yield (plain 은 skip)."""
+def _block_iter(
+    model: HybridGraphTransformerLM,
+) -> Iterator[HybridGraphTransformerBlock | FullGraphTransformerBlock]:
+    """모델의 hybrid block 만 yield (plain 은 skip). Phase 13 + Phase 14 둘 다 지원."""
     for blk in model.blocks:
-        if isinstance(blk, HybridGraphTransformerBlock):
+        if isinstance(blk, HybridGraphTransformerBlock | FullGraphTransformerBlock):
             yield blk
 
 
+def _snapshot_layer(layer) -> dict[str, Tensor]:
+    """HybridGraphLinear 한 layer 의 outer/inner snapshot."""
+    return {
+        "outer": layer.adj_outer.detach().cpu().clone(),
+        "inner": layer.adj_inner.detach().cpu().clone(),
+    }
+
+
 def _snapshot_adj(model: HybridGraphTransformerLM) -> list[dict[str, dict[str, Tensor]]] | None:
-    """hybrid arch 인 경우 각 block 의 FFN adj snapshot (Phase 12 demo 와 동일 hierarchy)."""
+    """hybrid arch 인 경우 각 block 의 adj snapshot.
+
+    - Phase 13 (FFN-only graph): ``{"fc1", "fc2"}``
+    - Phase 14 (full graph): ``{"qkv", "out", "fc1", "fc2"}`` — attention adj 까지 포함
+    """
     if model.arch == "plain":
         return None
     snapshots: list[dict[str, dict[str, Tensor]]] = []
     for blk in _block_iter(model):
-        snapshots.append(
-            {
-                "fc1": {
-                    "outer": blk.ffn.fc1.adj_outer.detach().cpu().clone(),
-                    "inner": blk.ffn.fc1.adj_inner.detach().cpu().clone(),
-                },
-                "fc2": {
-                    "outer": blk.ffn.fc2.adj_outer.detach().cpu().clone(),
-                    "inner": blk.ffn.fc2.adj_inner.detach().cpu().clone(),
-                },
-            }
-        )
+        snap: dict[str, dict[str, Tensor]] = {
+            "fc1": _snapshot_layer(blk.ffn.fc1),
+            "fc2": _snapshot_layer(blk.ffn.fc2),
+        }
+        if isinstance(blk, FullGraphTransformerBlock):
+            snap["qkv"] = _snapshot_layer(blk.attn.qkv)
+            snap["out"] = _snapshot_layer(blk.attn.out)
+        snapshots.append(snap)
     return snapshots
 
 
@@ -159,6 +177,7 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
         arch=config.arch,
         group_size=config.group_size,
         dropout=config.dropout,
+        use_full_graph=config.use_full_graph,
     ).to(config.device)
     data_iter = iter_random_batches(
         config.dataset, batch_size=config.batch_size, block_size=config.block_size, seed=config.seed
