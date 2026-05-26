@@ -7,11 +7,13 @@ import torch
 from torch import nn
 
 from graphlm.neuron.hybrid_transformer import (
+    FullGraphTransformerBlock,
     HybridGraphFFN,
     HybridGraphTransformerBlock,
     PlainFFN,
     PlainTransformerBlock,
     make_block,
+    make_full_block,
 )
 
 # ── HybridGraphFFN ───────────────────────────────────────────
@@ -187,6 +189,88 @@ def test_block_dropout_propagates_to_ffn(block_cls, kwargs):
     """block 의 dropout 인자가 attention 만이 아니라 FFN 까지 전달."""
     block = block_cls(**kwargs)
     assert block.ffn.dropout.p == 0.5, "FFN 의 dropout p 가 block dropout 과 불일치"
+
+
+# ── FullGraphTransformerBlock (Phase 14) ─────────────────────
+
+
+def test_full_block_shape():
+    block = FullGraphTransformerBlock(hidden_dim=32, n_heads=4, ffn_dim=64, group_size=8)
+    x = torch.randn(2, 16, 32)
+    assert block(x).shape == (2, 16, 32)
+
+
+def test_full_block_function_preservation_against_plain():
+    """full graph block (adj=full/full) + plain block 의 동일 weight 로 forward 동일."""
+    torch.manual_seed(0)
+    hidden, n_heads, ffn_d, k = 16, 4, 32, 4
+    full = FullGraphTransformerBlock(hidden, n_heads, ffn_d, group_size=k)
+    plain = PlainTransformerBlock(hidden, n_heads, ffn_d)
+
+    plain.rms1.load_state_dict(full.rms1.state_dict())
+    plain.rms2.load_state_dict(full.rms2.state_dict())
+    # attention: HybridGraphLinear qkv / out → standard nn.Linear 로 복사
+    _copy_hybrid_to_plain(full.attn.qkv, plain.attn.qkv)
+    _copy_hybrid_to_plain(full.attn.out, plain.attn.out)
+    # FFN: 동일 패턴
+    _copy_hybrid_to_plain(full.ffn.fc1, plain.ffn.fc1)
+    _copy_hybrid_to_plain(full.ffn.fc2, plain.ffn.fc2)
+
+    full.eval()
+    plain.eval()
+    x = torch.randn(2, 8, hidden)
+    with torch.no_grad():
+        y_full = full(x)
+        y_plain = plain(x)
+    assert torch.allclose(y_full, y_plain, atol=1e-5), (
+        f"full graph block forward 차이: max |diff| = {(y_full - y_plain).abs().max().item()}"
+    )
+
+
+def test_full_block_gradient_flows_all_params():
+    block = FullGraphTransformerBlock(
+        hidden_dim=16,
+        n_heads=4,
+        ffn_dim=32,
+        group_size=4,
+        adj_outer_init="uniform_around_one",
+        adj_inner_init="uniform_around_one",
+    )
+    x = torch.randn(2, 4, 16)
+    block(x).sum().backward()
+    null_grad = [n for n, p in block.named_parameters() if p.grad is None]
+    assert not null_grad, f"grad 없는 파라미터: {null_grad}"
+
+
+@pytest.mark.parametrize(
+    "arch",
+    ["plain", "hybrid_full_full", "hybrid_full_around_one", "hybrid_around_one_around_one"],
+)
+def test_make_full_block_all_archs_forward(arch):
+    block = make_full_block(arch, hidden_dim=16, n_heads=4, ffn_dim=32, group_size=4)
+    x = torch.randn(2, 8, 16)
+    assert block(x).shape == (2, 8, 16)
+
+
+def test_make_full_block_plain_uses_nn_linear():
+    """make_full_block 의 plain 은 make_block 의 plain 과 동일 (PlainTransformerBlock)."""
+    block = make_full_block("plain", 16, 4, 32, 4)
+    assert isinstance(block, PlainTransformerBlock)
+
+
+def test_make_full_block_hybrid_uses_full_graph():
+    """make_full_block 의 hybrid_* 는 FullGraphTransformerBlock (attention 도 graph)."""
+    block = make_full_block("hybrid_full_full", 16, 4, 32, 4)
+    assert isinstance(block, FullGraphTransformerBlock)
+    # attention 도 HybridGraphLinear 인지 확인
+    from graphlm.neuron.graph_attention import HybridGraphCausalSelfAttention
+
+    assert isinstance(block.attn, HybridGraphCausalSelfAttention)
+
+
+def test_make_full_block_unknown_raises():
+    with pytest.raises(ValueError, match="unknown arch"):
+        make_full_block("bogus", 16, 4, 32, 4)  # type: ignore[arg-type]
 
 
 # ── helpers ──────────────────────────────────────────────────
