@@ -103,6 +103,26 @@ def test_growable_linear_expand_out_preserves_adamw_state():
     assert new_state["step"] == step_before
 
 
+def test_growable_linear_expand_preserves_grad_when_present():
+    """backward() 후 step() 전에 expand 호출 시 기존 grad 보존 + 새 dim grad=0 (gemini #3300391305)."""
+    torch.manual_seed(0)
+    lin = GrowableLinear(8, 16)
+    x = torch.randn(4, 8)
+    out = lin(x)
+    out.sum().backward()
+    # step() 전에 expand — grad 가 살아있는 상태
+    old_grad = lin.weight.grad.clone()
+    assert old_grad is not None and old_grad.shape == (16, 8)
+
+    lin.expand_out(4, init="zero")
+    new_grad = lin.weight.grad
+    assert new_grad is not None and new_grad.shape == (20, 8)
+    # 기존 16 dim 의 grad 보존
+    assert torch.allclose(new_grad[:16], old_grad)
+    # 새 4 dim 의 grad = 0
+    assert torch.allclose(new_grad[16:], torch.zeros_like(new_grad[16:]))
+
+
 def test_growable_linear_expand_repeated_stability():
     """반복 expansion 후에도 forward / backward / step 정상 동작."""
     torch.manual_seed(0)

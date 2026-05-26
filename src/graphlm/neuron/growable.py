@@ -48,6 +48,10 @@ def _replace_param_with_optimizer_state(
     """
     old_param: nn.Parameter = getattr(module, attr)
     new_param = nn.Parameter(new_data, requires_grad=old_param.requires_grad)
+    # grad 보존 — backward() 후 step() 전에 expand 호출된 케이스 방어 (gemini #3300391305)
+    if old_param.grad is not None:
+        expanded_grad = _expand_tensor_with_zeros(old_param.grad, expand_axes)
+        new_param.grad = expanded_grad
     # Module 의 _parameters dict 갱신 — setattr 이 ParameterDict 처리 트리거
     setattr(module, attr, new_param)
 
