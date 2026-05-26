@@ -1,13 +1,15 @@
-"""Phase 10 — ChannelGraphLinear demo MLP-LM + 학습 헬퍼.
+"""Phase 10/11 — ChannelGraphLinear demo MLP-LM + 학습 헬퍼.
 
-노트북 분리 규약 준수. Phase 10 노트북 09-phase10-channel-graph-foundations.ipynb 는 여기서
+노트북 분리 규약 준수. Phase 10 / Phase 11 노트북 (09-phase10-..., 10-phase11-...) 모두 여기서
 import. Phase 9 의 ``graph_group_demo`` 의 channel-level 대응.
 
-3 가지 architecture 를 같은 학습 루프로 비교:
+4 가지 architecture 를 같은 학습 루프로 비교:
 - ``"plain"`` — 표준 nn.Linear (baseline)
 - ``"channel_full"`` — ChannelGraphLinear with adj_init="full" (function preserving 시작)
 - ``"channel_uniform_small"`` — ChannelGraphLinear with adj_init="uniform_small"
-  (Phase 2 sweet spot 패턴 channel-level edge 에 적용)
+  (Phase 2 residual-gate sweet spot 패턴, **anti-pattern** — Phase 10 magnitude rule 위반)
+- ``"channel_uniform_around_one"`` — ChannelGraphLinear with adj_init="uniform_around_one"
+  (Phase 11+ 권장 — 1.0 근처 noise, scale 균형 + 0-init 회피)
 """
 
 from __future__ import annotations

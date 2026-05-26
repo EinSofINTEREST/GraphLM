@@ -16,13 +16,15 @@ forward: y = W_eff @ x = (adj * W) @ x
 - node = 1 채널 (graph 의 vertex)
 - edge = (in, out) 쌍의 connection — adj 가 routing strength, W 가 transformation
 - adj=full (모두 1) → effective = W → standard Linear forward 동치 (function preserving)
-- adj=uniform_small → Phase 2 sweet spot 패턴 channel-level edge 에 적용 (0-init 회피)
+- adj=uniform_around_one (Phase 11+ 권장) → 1.0 근처 noise — scale 균형 + adj 학습 활성
+- adj=uniform_small → **anti-pattern** — Phase 2 sweet spot (0.10) 를 weight multiplier 위치에
+  잘못 적용한 사례 (Phase 10 의 +0.18 열위 발견, magnitude rule 위반)
 
-**0-init 금지 규칙 적용** (rationale: Phase 9 결과 PR #60 +
-[feedback_no_zero_init.md](https://www.notion.so/36ce8b70b7aa8100b0acf756686d2e9f) Notion 정리):
-- Phase 1 dead block / Phase 7 amplitude vanishing / Phase 9 block-diagonal 의 3차 반복 발견
-- 본 모듈은 ``adj_init="zero"`` 옵션 명시적 거부 (ValueError)
-- default 권장 = ``"full"`` (function preserving) 또는 ``"uniform_small"`` (sweet spot 패턴)
+**0-init 금지 + magnitude rule** (rationale: Phase 9 PR #60 + Phase 10 PR #62):
+- 0-init 금지: Phase 1 dead block / Phase 7 amplitude vanishing / Phase 9 block-diagonal 의
+  3차 반복 발견. 본 모듈은 ``adj_init="zero"`` 명시적 거부 (ValueError)
+- magnitude rule (Phase 10 추가): residual gate ≈ 0.10, **weight multiplier ≈ 1.0**
+- default 권장 = ``"full"`` (function preserving) 또는 ``"uniform_around_one"`` (scale-corrected)
 
 Phase 9 (GroupGraphLinear) 와의 차이:
 - Phase 9: group_size 단위 block 으로 묶어 (n_groups_out, n_groups_in) adjacency
@@ -98,8 +100,8 @@ class ChannelGraphLinear(nn.Module):
             raise ValueError(
                 f"adj_init={adj_init!r} 는 금지됨 — 0-init 은 vanishing gradient 함정 "
                 "(Phase 1 dead block / Phase 7 amplitude vanishing / Phase 9 block-diagonal "
-                "에서 3차 재현). rationale: Phase 9 PR #60. "
-                "'full' (function preserving) 또는 'uniform_small' (sweet spot 패턴) 사용 권장."
+                "에서 3차 재현). rationale: Phase 9 PR #60, magnitude rule: Phase 10 PR #62. "
+                "'full' (function preserving) 또는 'uniform_around_one' (scale-corrected) 사용 권장."
             )
         else:
             raise ValueError(f"unknown adj_init: {adj_init!r}")
