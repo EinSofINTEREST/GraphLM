@@ -63,3 +63,20 @@ def test_scaling_via_weight():
     y = norm(x)
     rms = y.pow(2).mean(dim=-1).sqrt()
     assert torch.allclose(rms, torch.full_like(rms, 2.0), atol=1e-3)
+
+
+def test_non_floating_input_raises():
+    """int 등 비-floating 입력은 silent cast 회피 위해 차단 (Copilot #3303168589)."""
+    norm = RMSNorm(16)
+    x_int = torch.zeros(4, 16, dtype=torch.long)
+    with pytest.raises(TypeError, match="floating-point"):
+        norm(x_int)
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_dtype_roundtrip_mixed_precision(dtype):
+    """출력 dtype 이 입력 dtype 과 일치 (gemini #3303153077). residual connection 안전."""
+    norm = RMSNorm(32)
+    x = torch.randn(4, 32, dtype=dtype)
+    y = norm(x)
+    assert y.dtype == dtype, f"expected {dtype}, got {y.dtype}"

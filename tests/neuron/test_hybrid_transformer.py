@@ -142,6 +142,53 @@ def test_make_block_hybrid_uses_hybrid_ffn():
     assert isinstance(block.ffn, HybridGraphFFN)
 
 
+# ── dropout consistency (Copilot #3303168649 / #3303168686) ──
+
+
+def test_hybrid_ffn_applies_dropout_when_training():
+    """HybridGraphFFN 도 fc2 뒤 dropout — backbone.FFN 패턴 일관."""
+    ffn = HybridGraphFFN(16, 32, group_size=4, dropout=0.5)
+    ffn.train()
+    torch.manual_seed(0)
+    x = torch.randn(64, 16)
+    # dropout 활성 시 stochastic — eval 모드와 다른 output 보장
+    y_train = ffn(x)
+    ffn.eval()
+    y_eval = ffn(x)
+    assert not torch.allclose(y_train, y_eval), "dropout 이 train 모드에서 적용되지 않음"
+
+
+def test_plain_ffn_applies_dropout_when_training():
+    """PlainFFN 도 dropout 인자 적용 — Hybrid 와 API 일관."""
+    ffn = PlainFFN(16, 32, dropout=0.5)
+    ffn.train()
+    torch.manual_seed(0)
+    x = torch.randn(64, 16)
+    y_train = ffn(x)
+    ffn.eval()
+    y_eval = ffn(x)
+    assert not torch.allclose(y_train, y_eval), "dropout 이 train 모드에서 적용되지 않음"
+
+
+@pytest.mark.parametrize(
+    "block_cls,kwargs",
+    [
+        (
+            PlainTransformerBlock,
+            {"hidden_dim": 16, "n_heads": 4, "ffn_dim": 32, "dropout": 0.5},
+        ),
+        (
+            HybridGraphTransformerBlock,
+            {"hidden_dim": 16, "n_heads": 4, "ffn_dim": 32, "group_size": 4, "dropout": 0.5},
+        ),
+    ],
+)
+def test_block_dropout_propagates_to_ffn(block_cls, kwargs):
+    """block 의 dropout 인자가 attention 만이 아니라 FFN 까지 전달."""
+    block = block_cls(**kwargs)
+    assert block.ffn.dropout.p == 0.5, "FFN 의 dropout p 가 block dropout 과 불일치"
+
+
 # ── helpers ──────────────────────────────────────────────────
 
 

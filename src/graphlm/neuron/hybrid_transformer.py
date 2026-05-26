@@ -37,9 +37,10 @@ class HybridGraphFFN(nn.Module):
         adj_outer_init: outer adj 초기화 (``"full"`` / ``"uniform_around_one"``).
             ``"identity"`` 는 FFN 이 정의상 rectangular (hidden ≠ ffn) 이라 지원하지 않음.
         adj_inner_init: inner adj 초기화 (``"full"`` / ``"uniform_around_one"``).
+        dropout: fc2 출력에 적용되는 dropout 확률 (backbone.FFN 과 동일 위치).
 
     Forward:
-        ``y = fc2(GELU(fc1(x)))`` — function preserving when both adj = full.
+        ``y = dropout(fc2(GELU(fc1(x))))`` — function preserving when both adj = full and dropout = 0.
     """
 
     def __init__(
@@ -50,6 +51,7 @@ class HybridGraphFFN(nn.Module):
         *,
         adj_outer_init: AdjOuterInit = "full",
         adj_inner_init: AdjInnerInit = "full",
+        dropout: float = 0.0,
     ):
         super().__init__()
         if adj_outer_init == "identity":
@@ -74,9 +76,10 @@ class HybridGraphFFN(nn.Module):
             adj_inner_init=adj_inner_init,
             bias=False,
         )
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.fc2(F.gelu(self.fc1(x)))
+        return self.dropout(self.fc2(F.gelu(self.fc1(x))))
 
 
 class HybridGraphTransformerBlock(nn.Module):
@@ -102,12 +105,15 @@ class HybridGraphTransformerBlock(nn.Module):
         self.rms1 = RMSNorm(hidden_dim)
         self.attn = CausalSelfAttention(hidden_dim, n_heads, dropout=dropout)
         self.rms2 = RMSNorm(hidden_dim)
+        # dropout 은 attention 과 FFN 양쪽 모두 적용 — backbone.FFN 의 fc2-뒤-dropout 패턴과 일관
+        # (Copilot #3303168649)
         self.ffn = HybridGraphFFN(
             hidden_dim,
             ffn_dim,
             group_size=group_size,
             adj_outer_init=adj_outer_init,
             adj_inner_init=adj_inner_init,
+            dropout=dropout,
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -124,22 +130,26 @@ Arch = Literal[
 
 
 class PlainFFN(nn.Module):
-    """Standard 2-layer FFN (no bias) — Phase 13 ``"plain"`` baseline."""
+    """Standard 2-layer FFN (no bias) — Phase 13 ``"plain"`` baseline.
 
-    def __init__(self, hidden_dim: int, ffn_dim: int):
+    backbone.FFN 과 동일한 ``dropout(fc2(GELU(fc1(x))))`` 구조.
+    """
+
+    def __init__(self, hidden_dim: int, ffn_dim: int, dropout: float = 0.0):
         super().__init__()
         self.fc1 = nn.Linear(hidden_dim, ffn_dim, bias=False)
         self.fc2 = nn.Linear(ffn_dim, hidden_dim, bias=False)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.fc2(F.gelu(self.fc1(x)))
+        return self.dropout(self.fc2(F.gelu(self.fc1(x))))
 
 
 class PlainTransformerBlock(nn.Module):
     """Pre-norm Transformer block with standard FFN — Phase 13 ``"plain"`` baseline.
 
     HybridGraphTransformerBlock 과 동일한 norm/attention/residual 구조 — FFN 만 표준 nn.Linear.
-    공정 비교 위해 RMSNorm 동일 사용.
+    공정 비교 위해 RMSNorm 동일 사용. dropout 은 attention + FFN 양쪽 모두 적용.
     """
 
     def __init__(self, hidden_dim: int, n_heads: int, ffn_dim: int, dropout: float = 0.0):
@@ -147,7 +157,8 @@ class PlainTransformerBlock(nn.Module):
         self.rms1 = RMSNorm(hidden_dim)
         self.attn = CausalSelfAttention(hidden_dim, n_heads, dropout=dropout)
         self.rms2 = RMSNorm(hidden_dim)
-        self.ffn = PlainFFN(hidden_dim, ffn_dim)
+        # Copilot #3303168686 — FFN dropout 도 적용해서 backbone.FFN 일관성 확보
+        self.ffn = PlainFFN(hidden_dim, ffn_dim, dropout=dropout)
 
     def forward(self, x: Tensor) -> Tensor:
         x = x + self.attn(self.rms1(x))

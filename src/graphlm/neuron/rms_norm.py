@@ -44,6 +44,10 @@ class RMSNorm(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         if x.shape[-1] != self.hidden_dim:
             raise ValueError(f"expected last dim {self.hidden_dim}, got {x.shape[-1]}")
+        # int 등 비-floating 입력은 silent cast 위험 — nn.LayerNorm 과 동일 정책으로 차단
+        # (Copilot #3303168589)
+        if not x.is_floating_point():
+            raise TypeError(f"RMSNorm requires floating-point input, got dtype={x.dtype}")
         # float32 로 cast 해서 RMS 계산 (mixed precision 안전성)
         x_dtype = x.dtype
         x_f = x.float()
