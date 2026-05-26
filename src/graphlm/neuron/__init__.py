@@ -11,11 +11,13 @@ from graphlm.neuron.backbone import (
     NeuronGrowingDecoder,
     SinusoidalAlpha,
 )
+from graphlm.neuron.graph_channel import ChannelGraphLinear
 from graphlm.neuron.graph_group import GroupGraphLinear
 from graphlm.neuron.growable import GrowableEmbedding, GrowableLayerNorm, GrowableLinear
 from graphlm.neuron.growth import add_attn_function_preserving, add_attn_smooth_start
 
 __all__ = [
+    "ChannelGraphLinear",
     "GroupGraphLinear",
     "GrowableEmbedding",
     "GrowableLayerNorm",
