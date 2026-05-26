@@ -9,7 +9,7 @@ doi: "<선택>"
 code_url: "<선택. 공식 구현 repo>"
 tags: ["<카테고리 키워드들>"]
 status: "draft"  # draft | reviewed | archived
-cited_in: []     # 본 프로젝트 내 인용 위치 (노트북/모듈 경로). 예: ["notebooks/10-experiments/10-gcn-baseline.ipynb"]
+cited_in: []     # 본 프로젝트 내 인용 위치 (노트북/모듈 경로). 예: ["notebooks/01-experiments/00-gcn-baseline.ipynb"]
 ---
 
 <!--

@@ -48,7 +48,7 @@ cited_in: []
 ## 본 프로젝트 시사점
 
 - **Graph 를 sequence 로 보는 관점**: 본 프로젝트의 LM 코어와 가장 잘 맞는 접근 — graph 를 token 시퀀스로 변환하면 기존 transformer infra 재사용 가능.
-- **사전학습 패턴 reference**: BERT 식 MLM / structure recovery 의 graph 도메인 적용 예시 → 본 프로젝트의 사전학습 노트북 (`notebooks/10-experiments/`) 설계 참고.
+- **사전학습 패턴 reference**: BERT 식 MLM / structure recovery 의 graph 도메인 적용 예시 → 본 프로젝트의 사전학습 노트북 (`notebooks/01-experiments/`) 설계 참고.
 - **차용할 아이디어**: intimacy-based subgraph sampling 은 메모리 효율적인 batch 구성에 유효. WL/hop/intimacy positional encoding 의 4-way fusion 도 참고.
 - **채택하지 않을 부분**: message passing 완전 배제는 과한 선언 — 본 프로젝트는 message passing + attention 의 hybrid 채택 가능성 큼.
 - **후속 실험 가설**: Graph-BERT 의 subgraph token + GraphFormers 의 GNN-nested 결합으로 작은 dataset 에서 어느 쪽 inductive bias 가 우월한지 ablation.

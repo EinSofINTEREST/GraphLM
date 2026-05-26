@@ -11,8 +11,9 @@ GraphLM 실험 노트북 디렉토리.
 | Prefix | 단계 | 예시 |
 |---|---|---|
 | `00-exploration/` | 데이터 탐색, EDA | `00-cora-dataset-stats.ipynb` |
-| `10-experiments/` | 가설 검증 학습 실험 | `10-gcn-baseline.ipynb`, `11-attention-vs-gcn.ipynb` |
-| `20-analysis/` | 결과 분석, 시각화 | `20-attention-head-vis.ipynb` |
+| `01-experiments/` | 가설 검증 학습 실험 (block-level paradigm) | `00-phase1-growing-decoder.ipynb`, `01-phase1-reproducibility.ipynb` |
+| `02-function-level/` | neuron paradigm 실험 (head-level) | `00-phase1-head-plasticity.ipynb`, ... |
+| `03-analysis/` | 결과 분석, 시각화 | `00-attention-head-vis.ipynb` |
 
 ## 노트북 작성 규칙
 
@@ -27,7 +28,7 @@ GraphLM 실험 노트북 디렉토리.
 ## 예시 노트북 헤더
 
 ```markdown
-# 10-gcn-baseline
+# 00-gcn-baseline
 
 - 가설: GCN baseline 이 Cora 데이터셋에서 80% 이상 accuracy 달성
 - 데이터: Cora (planetoid)
