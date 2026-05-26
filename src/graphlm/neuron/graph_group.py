@@ -146,9 +146,10 @@ class GroupGraphLinear(nn.Module):
             raise ValueError(f"threshold must be >= 0, got {threshold}")
         with torch.no_grad():
             # masked_fill_ 가 mul_(mask.to(dtype)) 보다 깔끔 + 캐스팅 불필요 (gemini #3301524139)
+            # .data 명시 — leaf+requires_grad tensor 의 in-place 안전성 (gemini #3301728271 동일 패턴)
             zero_mask = self.adj.abs() < threshold
             n_zeroed = int(zero_mask.sum().item())
-            self.adj.masked_fill_(zero_mask, 0.0)
+            self.adj.data.masked_fill_(zero_mask, 0.0)
         return n_zeroed
 
     def extra_repr(self) -> str:

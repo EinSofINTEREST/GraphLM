@@ -32,8 +32,8 @@ def test_uniform_small_adj_init_range():
 
 @pytest.mark.parametrize("bad_init", ["zero", "zeros"])
 def test_zero_init_rejected(bad_init):
-    """0-init 옵션 명시적 거부 — feedback_no_zero_init.md 규칙 적용."""
-    with pytest.raises(ValueError, match="feedback_no_zero_init"):
+    """0-init 옵션 명시적 거부 — Phase 1/7/9 의 vanishing gradient 함정 회피."""
+    with pytest.raises(ValueError, match="vanishing gradient"):
         ChannelGraphLinear(8, 16, adj_init=bad_init)  # type: ignore[arg-type]
 
 

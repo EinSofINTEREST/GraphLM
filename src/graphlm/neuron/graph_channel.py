@@ -18,7 +18,8 @@ forward: y = W_eff @ x = (adj * W) @ x
 - adj=full (모두 1) → effective = W → standard Linear forward 동치 (function preserving)
 - adj=uniform_small → Phase 2 sweet spot 패턴 channel-level edge 에 적용 (0-init 회피)
 
-**0-init 금지 규칙 적용** (memory: feedback_no_zero_init.md):
+**0-init 금지 규칙 적용** (rationale: Phase 9 결과 PR #60 +
+[feedback_no_zero_init.md](https://www.notion.so/36ce8b70b7aa8100b0acf756686d2e9f) Notion 정리):
 - Phase 1 dead block / Phase 7 amplitude vanishing / Phase 9 block-diagonal 의 3차 반복 발견
 - 본 모듈은 ``adj_init="zero"`` 옵션 명시적 거부 (ValueError)
 - default 권장 = ``"full"`` (function preserving) 또는 ``"uniform_small"`` (sweet spot 패턴)
@@ -34,8 +35,8 @@ import math
 from typing import Literal
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.nn import functional as F  # noqa: N812
 
 AdjInit = Literal["full", "uniform_small"]
 
@@ -48,7 +49,8 @@ class ChannelGraphLinear(nn.Module):
         out_features: 출력 채널 수 (graph 의 out-nodes).
         adj_init: ``"full"`` (모두 1, function preserving) 또는 ``"uniform_small"``
             (uniform[0.05, 0.15], Phase 2 sweet spot 패턴). ``"zero"`` 등 0-init 옵션은
-            거부 (memory: feedback_no_zero_init.md).
+            거부 (rationale: Phase 9 결과 PR #60 — block-diagonal sparse 시작이 +0.14 loss
+            열위, vanishing gradient 함정).
         bias: bias 사용 여부 (standard Linear 동일).
 
     Forward:
@@ -85,9 +87,10 @@ class ChannelGraphLinear(nn.Module):
             adj = torch.empty(out_features, in_features).uniform_(0.05, 0.15)
         elif adj_init in {"zero", "zeros"}:
             raise ValueError(
-                f"adj_init={adj_init!r} 는 금지됨 (memory: feedback_no_zero_init.md). "
-                "0-init 은 vanishing gradient 함정 — Phase 1/7/9 에서 3차 재현. "
-                "'full' 또는 'uniform_small' 사용 권장."
+                f"adj_init={adj_init!r} 는 금지됨 — 0-init 은 vanishing gradient 함정 "
+                "(Phase 1 dead block / Phase 7 amplitude vanishing / Phase 9 block-diagonal "
+                "에서 3차 재현). rationale: Phase 9 PR #60. "
+                "'full' (function preserving) 또는 'uniform_small' (sweet spot 패턴) 사용 권장."
             )
         else:
             raise ValueError(f"unknown adj_init: {adj_init!r}")
@@ -111,13 +114,17 @@ class ChannelGraphLinear(nn.Module):
         return float(below)
 
     def sparsify_adj(self, threshold: float) -> int:
-        """|adj| < threshold 인 entry 를 0 으로 강제 (in-place). returns 비활성화된 entry 수."""
+        """|adj| < threshold 인 entry 를 0 으로 강제 (in-place). returns 비활성화된 entry 수.
+
+        ``self.adj.data.masked_fill_`` 사용 — leaf+requires_grad tensor 에서 in-place op 의
+        autograd 안전성 명시적 보장 (gemini #3301728271 방어적 패턴).
+        """
         if threshold < 0:
             raise ValueError(f"threshold must be >= 0, got {threshold}")
         with torch.no_grad():
             zero_mask = self.adj.abs() < threshold
             n_zeroed = int(zero_mask.sum().item())
-            self.adj.masked_fill_(zero_mask, 0.0)
+            self.adj.data.masked_fill_(zero_mask, 0.0)
         return n_zeroed
 
     def freeze_adjacency(self) -> None:
