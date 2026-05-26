@@ -49,7 +49,9 @@ class RMSNorm(nn.Module):
         x_f = x.float()
         rms = torch.rsqrt(x_f.pow(2).mean(dim=-1, keepdim=True) + self.eps)
         y = (x_f * rms).to(x_dtype)
-        return y * self.weight
+        # weight 도 x_dtype 로 cast — 그래야 mixed precision (FP16/BF16) 에서 residual
+        # connection dtype mismatch 회피 (gemini #3303153077)
+        return y * self.weight.to(x_dtype)
 
     def extra_repr(self) -> str:
         return f"hidden_dim={self.hidden_dim}, eps={self.eps}"
