@@ -140,3 +140,116 @@ def test_freeze_helpers():
     assert lin.weight.requires_grad
     lin.freeze_adj_inner()
     assert not lin.adj_inner.requires_grad
+
+
+# ── Phase 15: edge prune ────────────────────────────────────────
+
+
+def test_edge_mask_initial_all_ones():
+    """초기 edge_mask 는 전부 1 (no prune)."""
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    assert lin.edge_mask.shape == (4, 4, 4, 4)
+    assert torch.all(lin.edge_mask == 1.0)
+    assert lin.effective_sparsity() == 0.0
+    assert lin.n_alive_edges() == 16 * 16  # 4·4·4·4
+
+
+def test_forward_with_initial_mask_unchanged():
+    """edge_mask=1 일 때 forward 는 Phase 14 와 동일 (function preservation)."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 24, group_size=4)
+    x = torch.randn(2, 8, 16)
+    y = lin(x)
+    # mask 다 0 으로 만들면 출력도 bias 만 남아야 함 (sanity check)
+    with torch.no_grad():
+        lin.edge_mask.zero_()
+    y_zero = lin(x)
+    expected = lin.bias.expand(2, 8, 24)
+    assert torch.allclose(y_zero, expected, atol=1e-6), (
+        f"mask=0 시 출력은 bias 만 남아야 함, max |diff| = {(y_zero - expected).abs().max().item()}"
+    )
+    # 원래 mask 복구해서 y 와 다르다는 것도 확인
+    assert not torch.allclose(y, y_zero)
+
+
+def test_prune_by_magnitude_basic():
+    """threshold 이하 edge 가 mask=0 으로 prune."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    initial_mag = lin.effective_edge_magnitude()
+    # threshold = 50 percentile 로 잡으면 절반 정도 prune
+    threshold = float(initial_mag.median().item())
+    n_pruned = lin.prune_by_magnitude(threshold)
+    assert n_pruned > 0
+    sparsity = lin.effective_sparsity()
+    assert 0.4 < sparsity < 0.6, f"median threshold 면 ~50% sparsity, got {sparsity}"
+
+
+def test_prune_idempotent_below_threshold():
+    """같은 threshold 로 두 번 호출 시 두 번째는 0 신규 prune."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    threshold = float(lin.effective_edge_magnitude().median().item())
+    n1 = lin.prune_by_magnitude(threshold)
+    n2 = lin.prune_by_magnitude(threshold)
+    assert n1 > 0
+    assert n2 == 0, f"두 번째 prune 은 신규 0 이어야 함, got {n2}"
+
+
+def test_pruned_edges_do_not_resurrect_via_gradient():
+    """pruned edge 의 weight/adj gradient 가 정확히 0 — optimizer 가 살릴 수 없음."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(
+        16, 16, group_size=4, adj_outer_init="uniform_around_one", adj_inner_init="uniform_around_one"
+    )
+    threshold = float(lin.effective_edge_magnitude().median().item())
+    lin.prune_by_magnitude(threshold)
+    dead_positions = lin.edge_mask == 0
+
+    x = torch.randn(2, 16)
+    lin(x).sum().backward()
+    # weight gradient: pruned 위치는 0
+    assert torch.all(lin.weight.grad[dead_positions] == 0), "weight grad at pruned == 0"
+    # adj_inner gradient: pruned 위치는 0
+    assert torch.all(lin.adj_inner.grad[dead_positions] == 0), "adj_inner grad at pruned == 0"
+
+
+def test_prune_bottom_fraction():
+    """fraction=0.3 → 살아있는 edge 의 ~30% 신규 prune."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    alive_before = lin.n_alive_edges()
+    n_pruned = lin.prune_bottom_fraction(0.3)
+    expected = int(alive_before * 0.3)
+    # tie-breaking 으로 약간 초과 가능 → ±10 허용
+    assert abs(n_pruned - expected) <= 10, f"target {expected}, got {n_pruned}"
+
+
+def test_prune_bottom_fraction_zero_fraction_noop():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    assert lin.prune_bottom_fraction(0.0) == 0
+
+
+def test_prune_negative_threshold_rejected():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    with pytest.raises(ValueError, match="must be >= 0"):
+        lin.prune_by_magnitude(-0.1)
+
+
+def test_prune_invalid_fraction_rejected():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    with pytest.raises(ValueError, match=r"must be in \[0, 1\]"):
+        lin.prune_bottom_fraction(1.5)
+
+
+def test_edge_mask_in_state_dict():
+    """edge_mask 가 state_dict 에 포함되어 save/load 보존."""
+    lin1 = HybridGraphLinear(16, 16, group_size=4)
+    lin1.prune_by_magnitude(float(lin1.effective_edge_magnitude().median().item()))
+    sparsity_before = lin1.effective_sparsity()
+    assert sparsity_before > 0
+
+    lin2 = HybridGraphLinear(16, 16, group_size=4)
+    lin2.load_state_dict(lin1.state_dict())
+    assert lin2.effective_sparsity() == sparsity_before
+    assert torch.all(lin2.edge_mask == lin1.edge_mask)

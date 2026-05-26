@@ -160,6 +160,14 @@ class HybridGraphLinear(nn.Module):
         else:
             self.register_parameter("bias", None)
 
+        # Phase 15: edge_mask — buffer (학습 X, state_dict 에 포함). 초기값 모두 1 (no prune).
+        # prune_by_magnitude() 호출 시 일부 위치가 영구 0 으로 전환 → 해당 edge 의 forward
+        # 기여도 0 + gradient chain 도 mask=0 위치에서 끊김 → resurrection 방지.
+        self.register_buffer(
+            "edge_mask",
+            torch.ones(self.n_groups_out, self.n_groups_in, group_size, group_size),
+        )
+
     def forward(self, x: Tensor) -> Tensor:
         # x: (..., in_features) → (..., n_groups_in, group_size)
         *batch, in_f = x.shape
@@ -169,10 +177,13 @@ class HybridGraphLinear(nn.Module):
 
         # 메모리 효율 최적화 (gemini #3302293739): adj_outer 와 adj_inner 를 weight 수준에서
         # 미리 결합 → (*batch, G_out, G_in, k) 의 큰 intermediate tensor 회피.
-        # 수학적 등치: contrib[..., go, gi, ko] = Σ_ki adj_inner[go,gi,ki,ko] · W[go,gi,ki,ko] · x_g[..., gi, ki]
-        #              y[..., go, ko]         = Σ_gi adj_outer[go, gi] · contrib[..., go, gi, ko]
-        #                                     = Σ_gi Σ_ki (adj_outer · adj_inner · W)[...] · x_g[..., gi, ki]
-        eff_w = self.adj_outer.unsqueeze(-1).unsqueeze(-1) * self.adj_inner * self.weight
+        # Phase 15: edge_mask 도 같은 위치에 곱함 → pruned edge 의 forward 0 + gradient 차단.
+        eff_w = (
+            self.adj_outer.unsqueeze(-1).unsqueeze(-1)
+            * self.adj_inner
+            * self.weight
+            * self.edge_mask
+        )
         # single einsum — output (*batch, G_out, k), 중간 (*batch, G_out, G_in, k) 텐서 없음
         y_g = torch.einsum("...gi,Ggik->...Gk", x_g, eff_w)
         # flatten back to (..., out_features)
@@ -200,6 +211,81 @@ class HybridGraphLinear(nn.Module):
 
     def freeze_adj_inner(self) -> None:
         self.adj_inner.requires_grad_(False)
+
+    # ── Phase 15: edge prune ────────────────────────────────────
+
+    def effective_edge_magnitude(self) -> Tensor:
+        """현재 forward 에 적용되는 edge magnitude (shape: (G_out, G_in, k, k)).
+
+        = ``|adj_outer · adj_inner · W| · edge_mask`` — 이미 pruned 된 edge 는 0.
+        prune 결정 / sparsity 측정에 사용.
+        """
+        with torch.no_grad():
+            return (
+                (self.adj_outer.unsqueeze(-1).unsqueeze(-1) * self.adj_inner * self.weight).abs()
+                * self.edge_mask
+            )
+
+    def prune_by_magnitude(self, threshold: float) -> int:
+        """edge magnitude < threshold 인 위치를 영구 prune (mask=0).
+
+        gradient resurrection 방지: forward 의 ``eff_w *= edge_mask`` 곱셈으로
+        해당 위치의 gradient 가 ``adj_outer``, ``adj_inner``, ``weight`` 모두에서 0 으로 차단됨.
+
+        Args:
+            threshold: |adj_outer · adj_inner · W| 의 절대값 임계값.
+
+        Returns:
+            이번 호출에서 신규로 prune 된 edge 수.
+        """
+        if threshold < 0:
+            raise ValueError(f"threshold must be >= 0, got {threshold}")
+        with torch.no_grad():
+            mag = self.effective_edge_magnitude()
+            new_dead = (mag < threshold) & (self.edge_mask > 0)
+            n_pruned = int(new_dead.sum().item())
+            self.edge_mask[new_dead] = 0.0
+        return n_pruned
+
+    def prune_bottom_fraction(self, fraction: float) -> int:
+        """살아있는 edge 중 magnitude 하위 ``fraction`` 비율을 prune.
+
+        threshold 기반보다 target sparsity 제어가 용이. fraction=0.3 → 살아있는 edge 의 30% 추가 prune.
+
+        Args:
+            fraction: 0.0 ~ 1.0, 살아있는 edge 중 prune 할 비율.
+
+        Returns:
+            이번 호출에서 신규로 prune 된 edge 수.
+        """
+        if not 0.0 <= fraction <= 1.0:
+            raise ValueError(f"fraction must be in [0, 1], got {fraction}")
+        with torch.no_grad():
+            mag = self.effective_edge_magnitude()
+            alive_mask = self.edge_mask > 0
+            alive_count = int(alive_mask.sum().item())
+            n_to_prune = int(alive_count * fraction)
+            if n_to_prune == 0:
+                return 0
+            # 살아있는 edge 만의 magnitude 중 하위 n_to_prune 위치
+            alive_mag = mag[alive_mask]
+            # kthvalue 는 sorted 의 k 번째 작은 값 (1-indexed)
+            kth = alive_mag.kthvalue(n_to_prune).values.item()
+            new_dead = (mag <= kth) & alive_mask
+            # tie-breaking: kth 와 같은 magnitude 가 여럿이면 약간 초과될 수 있으나 OK
+            n_pruned = int(new_dead.sum().item())
+            self.edge_mask[new_dead] = 0.0
+        return n_pruned
+
+    def effective_sparsity(self) -> float:
+        """전체 edge 중 영구 prune (mask=0) 비율."""
+        with torch.no_grad():
+            return float((self.edge_mask == 0).float().mean().item())
+
+    def n_alive_edges(self) -> int:
+        """살아있는 edge 수 (mask=1)."""
+        with torch.no_grad():
+            return int((self.edge_mask > 0).sum().item())
 
     def extra_repr(self) -> str:
         return (
