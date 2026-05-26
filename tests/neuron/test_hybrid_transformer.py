@@ -14,7 +14,6 @@ from graphlm.neuron.hybrid_transformer import (
     make_block,
 )
 
-
 # ── HybridGraphFFN ───────────────────────────────────────────
 
 
@@ -51,7 +50,11 @@ def test_ffn_function_preservation_full_full():
 
 def test_ffn_all_params_have_gradient():
     ffn = HybridGraphFFN(
-        16, 32, group_size=4, adj_outer_init="uniform_around_one", adj_inner_init="uniform_around_one"
+        16,
+        32,
+        group_size=4,
+        adj_outer_init="uniform_around_one",
+        adj_inner_init="uniform_around_one",
     )
     x = torch.randn(2, 16)
     ffn(x).sum().backward()
@@ -66,9 +69,7 @@ def test_ffn_all_params_have_gradient():
 
 
 def test_block_shape():
-    block = HybridGraphTransformerBlock(
-        hidden_dim=32, n_heads=4, ffn_dim=64, group_size=8
-    )
+    block = HybridGraphTransformerBlock(hidden_dim=32, n_heads=4, ffn_dim=64, group_size=8)
     x = torch.randn(2, 16, 32)
     assert block(x).shape == (2, 16, 32)
 
