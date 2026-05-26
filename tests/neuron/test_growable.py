@@ -190,3 +190,25 @@ def test_growable_linear_invalid_init_mode_raises():
     lin = GrowableLinear(8, 16)
     with pytest.raises(ValueError, match="unknown init mode"):
         lin.expand_out(2, init="bogus")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("bad_delta", [0, -1, -10])
+def test_growable_linear_non_positive_delta_raises(bad_delta):
+    """delta <= 0 시 명시적 ValueError (Copilot #3300394733)."""
+    lin = GrowableLinear(8, 16)
+    with pytest.raises(ValueError, match="positive int"):
+        lin.expand_out(bad_delta)
+    with pytest.raises(ValueError, match="positive int"):
+        lin.expand_in(bad_delta)
+
+
+def test_growable_layernorm_non_positive_delta_raises():
+    ln = GrowableLayerNorm(16)
+    with pytest.raises(ValueError, match="positive int"):
+        ln.expand(0)
+
+
+def test_growable_embedding_non_positive_delta_raises():
+    emb = GrowableEmbedding(10, 8)
+    with pytest.raises(ValueError, match="positive int"):
+        emb.expand_dim(-1)

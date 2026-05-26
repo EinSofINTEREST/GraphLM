@@ -104,6 +104,12 @@ def _init_new_block(shape: tuple[int, ...], mode: InitMode, std: float = 0.02) -
     raise ValueError(f"unknown init mode: {mode}")
 
 
+def _validate_delta(delta: int) -> None:
+    """expand_* 메서드의 공통 delta 검증 — 양의 정수가 아니면 명시적 ValueError (Copilot #3300394733)."""
+    if not isinstance(delta, int) or delta <= 0:
+        raise ValueError(f"delta must be a positive int, got {delta!r}")
+
+
 class GrowableLinear(nn.Module):
     """nn.Linear 호환 + ``expand_out`` / ``expand_in`` 메서드 제공.
 
@@ -141,18 +147,21 @@ class GrowableLinear(nn.Module):
         ``init="zero"`` + zero bias → expansion 직후 새 out dim 의 출력 = 0 으로 function preserving.
         downstream layer 의 ``expand_in`` 이 같은 delta 로 따라오면 전체 forward 불변.
         """
+        _validate_delta(delta)
         device = self.weight.device
         dtype = self.weight.dtype
-        new_rows = _init_new_block((delta, self.in_features), init, std).to(
-            device=device, dtype=dtype
-        )
-        new_weight = torch.cat([self.weight.data, new_rows], dim=0)
+        with torch.no_grad():
+            new_rows = _init_new_block((delta, self.in_features), init, std).to(
+                device=device, dtype=dtype
+            )
+            new_weight = torch.cat([self.weight.detach(), new_rows], dim=0)
         _replace_param_with_optimizer_state(
             self, "weight", new_weight, optimizer, expand_axes={0: delta}
         )
         if self.bias is not None:
-            new_bias_tail = torch.zeros(delta, device=device, dtype=dtype)
-            new_bias = torch.cat([self.bias.data, new_bias_tail], dim=0)
+            with torch.no_grad():
+                new_bias_tail = torch.zeros(delta, device=device, dtype=dtype)
+                new_bias = torch.cat([self.bias.detach(), new_bias_tail], dim=0)
             _replace_param_with_optimizer_state(
                 self, "bias", new_bias, optimizer, expand_axes={0: delta}
             )
@@ -174,12 +183,14 @@ class GrowableLinear(nn.Module):
         같은 delta 로 새 출력 dim 을 만들었다면 전체 forward 불변 (둘 모두 0 으로 이어짐).
         bias 는 in 축과 무관 — 변경 없음.
         """
+        _validate_delta(delta)
         device = self.weight.device
         dtype = self.weight.dtype
-        new_cols = _init_new_block((self.out_features, delta), init, std).to(
-            device=device, dtype=dtype
-        )
-        new_weight = torch.cat([self.weight.data, new_cols], dim=1)
+        with torch.no_grad():
+            new_cols = _init_new_block((self.out_features, delta), init, std).to(
+                device=device, dtype=dtype
+            )
+            new_weight = torch.cat([self.weight.detach(), new_cols], dim=1)
         _replace_param_with_optimizer_state(
             self, "weight", new_weight, optimizer, expand_axes={1: delta}
         )
@@ -189,7 +200,11 @@ class GrowableLinear(nn.Module):
 class GrowableLayerNorm(nn.Module):
     """nn.LayerNorm 의 확장 가능 버전 — ``normalized_shape`` 이 마지막 dim 인 경우만 지원.
 
-    expand 시: weight 새 entries = 1.0, bias 새 entries = 0.0 → identity-preserving.
+    expand 시: weight 새 entries = 1.0, bias 새 entries = 0.0 (affine 파라미터는 identity-style init).
+
+    **주의** (Copilot #3300394745): LayerNorm 은 마지막 dim 전체의 mean/var 로 정규화하므로 dim
+    을 추가하면 새 dim 이 0 이더라도 *기존 dim 의 정규화 통계* 가 일반적으로 바뀌어 출력이
+    엄밀히 동일하지 않다. 본 expand 가 보장하는 것은 affine 파라미터의 identity-style init 뿐.
     """
 
     def __init__(self, normalized_shape: int, eps: float = 1e-5):
@@ -205,13 +220,18 @@ class GrowableLayerNorm(nn.Module):
         )
 
     def expand(self, delta: int, *, optimizer: torch.optim.Optimizer | None = None) -> None:
-        """Normalized dim 을 ``delta`` 만큼 확장 (new weight=1, new bias=0)."""
+        """Normalized dim 을 ``delta`` 만큼 확장 (new weight=1, new bias=0).
+
+        정규화 통계 (mean/var) 는 새 dim 입력 값에 의해 영향을 받음에 유의.
+        """
+        _validate_delta(delta)
         device = self.weight.device
         dtype = self.weight.dtype
-        new_w_tail = torch.ones(delta, device=device, dtype=dtype)
-        new_b_tail = torch.zeros(delta, device=device, dtype=dtype)
-        new_weight = torch.cat([self.weight.data, new_w_tail], dim=0)
-        new_bias = torch.cat([self.bias.data, new_b_tail], dim=0)
+        with torch.no_grad():
+            new_w_tail = torch.ones(delta, device=device, dtype=dtype)
+            new_b_tail = torch.zeros(delta, device=device, dtype=dtype)
+            new_weight = torch.cat([self.weight.detach(), new_w_tail], dim=0)
+            new_bias = torch.cat([self.bias.detach(), new_b_tail], dim=0)
         _replace_param_with_optimizer_state(
             self, "weight", new_weight, optimizer, expand_axes={0: delta}
         )
@@ -246,12 +266,14 @@ class GrowableEmbedding(nn.Module):
         init: InitMode = "zero",
         std: float = 0.02,
     ) -> None:
+        _validate_delta(delta)
         device = self.weight.device
         dtype = self.weight.dtype
-        new_cols = _init_new_block((self.num_embeddings, delta), init, std).to(
-            device=device, dtype=dtype
-        )
-        new_weight = torch.cat([self.weight.data, new_cols], dim=1)
+        with torch.no_grad():
+            new_cols = _init_new_block((self.num_embeddings, delta), init, std).to(
+                device=device, dtype=dtype
+            )
+            new_weight = torch.cat([self.weight.detach(), new_cols], dim=1)
         _replace_param_with_optimizer_state(
             self, "weight", new_weight, optimizer, expand_axes={1: delta}
         )
