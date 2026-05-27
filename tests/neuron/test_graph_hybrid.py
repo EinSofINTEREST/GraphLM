@@ -155,21 +155,31 @@ def test_edge_mask_initial_all_ones():
 
 
 def test_forward_with_initial_mask_unchanged():
-    """edge_mask=1 일 때 forward 는 Phase 14 와 동일 (function preservation)."""
+    """edge_mask=1 (초기) 일 때 forward 가 mask 없이 계산한 값과 정확히 동일 (function preservation).
+
+    Copilot #3307536521 — 이름과 검증 일치: mask=1 의 forward 가 mask 적용 안 한 직접 계산과 같은지 직접 비교.
+    """
     torch.manual_seed(0)
     lin = HybridGraphLinear(16, 24, group_size=4)
     x = torch.randn(2, 8, 16)
     y = lin(x)
-    # mask 다 0 으로 만들면 출력도 bias 만 남아야 함 (sanity check)
+
+    # mask 없는 forward 직접 계산 (mask=1 이므로 결과 동일해야 함)
+    with torch.no_grad():
+        x_g = x.reshape(2, 8, lin.n_groups_in, lin.group_size)
+        eff_w_no_mask = lin.adj_outer.unsqueeze(-1).unsqueeze(-1) * lin.adj_inner * lin.weight
+        y_g = torch.einsum("...gi,Ggik->...Gk", x_g, eff_w_no_mask)
+        expected = y_g.reshape(2, 8, lin.out_features) + lin.bias
+    assert torch.allclose(y, expected, atol=1e-6), (
+        f"mask=1 forward 가 mask 없는 계산과 달라짐, max |diff| = {(y - expected).abs().max().item()}"
+    )
+
+    # 추가 sanity: mask 를 모두 0 으로 만들면 출력은 bias 만 남음
     with torch.no_grad():
         lin.edge_mask.zero_()
     y_zero = lin(x)
-    expected = lin.bias.expand(2, 8, 24)
-    assert torch.allclose(y_zero, expected, atol=1e-6), (
-        f"mask=0 시 출력은 bias 만 남아야 함, max |diff| = {(y_zero - expected).abs().max().item()}"
-    )
-    # 원래 mask 복구해서 y 와 다르다는 것도 확인
-    assert not torch.allclose(y, y_zero)
+    bias_expected = lin.bias.expand(2, 8, 24)
+    assert torch.allclose(y_zero, bias_expected, atol=1e-6)
 
 
 def test_prune_by_magnitude_basic():
@@ -219,14 +229,35 @@ def test_pruned_edges_do_not_resurrect_via_gradient():
 
 
 def test_prune_bottom_fraction():
-    """fraction=0.3 → 살아있는 edge 의 ~30% 신규 prune."""
+    """fraction=0.3 → 살아있는 edge 의 정확히 30% prune (topk 기반 deterministic).
+
+    gemini #3307531745 — topk 로 정확 n개 prune 보장되므로 tolerance 불필요.
+    """
     torch.manual_seed(0)
     lin = HybridGraphLinear(16, 16, group_size=4)
     alive_before = lin.n_alive_edges()
     n_pruned = lin.prune_bottom_fraction(0.3)
     expected = int(alive_before * 0.3)
-    # tie-breaking 으로 약간 초과 가능 → ±10 허용
-    assert abs(n_pruned - expected) <= 10, f"target {expected}, got {n_pruned}"
+    assert n_pruned == expected, f"target {expected}, got {n_pruned}"
+
+
+def test_prune_bottom_fraction_tie_breaking_deterministic():
+    """모든 magnitude 가 동률일 때도 정확히 n_to_prune 만큼만 prune (no over-prune).
+
+    gemini #3307531740 의 시나리오 — uniform 같은 magnitude → kthvalue 방식은 100% prune 위험.
+    """
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    # 모든 magnitude 가 정확히 같도록 설정
+    with torch.no_grad():
+        lin.weight.fill_(1.0)
+        lin.adj_outer.fill_(1.0)
+        lin.adj_inner.fill_(1.0)
+    alive_before = lin.n_alive_edges()
+    n_pruned = lin.prune_bottom_fraction(0.3)
+    expected = int(alive_before * 0.3)
+    assert n_pruned == expected
+    # over-prune 안 됨 — 살아있는 edge 수가 expected 만큼 줄음
+    assert lin.n_alive_edges() == alive_before - expected
 
 
 def test_prune_bottom_fraction_zero_fraction_noop():

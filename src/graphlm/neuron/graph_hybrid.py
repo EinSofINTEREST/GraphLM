@@ -266,15 +266,15 @@ class HybridGraphLinear(nn.Module):
             n_to_prune = int(alive_count * fraction)
             if n_to_prune == 0:
                 return 0
-            # 살아있는 edge 만의 magnitude 중 하위 n_to_prune 위치
-            alive_mag = mag[alive_mask]
-            # kthvalue 는 sorted 의 k 번째 작은 값 (1-indexed)
-            kth = alive_mag.kthvalue(n_to_prune).values.item()
-            new_dead = (mag <= kth) & alive_mask
-            # tie-breaking: kth 와 같은 magnitude 가 여럿이면 약간 초과될 수 있으나 OK
-            n_pruned = int(new_dead.sum().item())
-            self.edge_mask[new_dead] = 0.0
-        return n_pruned
+            # 살아있는 edge 의 4D 인덱스 + magnitude
+            alive_indices = torch.nonzero(alive_mask, as_tuple=False)  # (alive_count, 4)
+            alive_mag = mag[alive_mask]  # (alive_count,)
+            # torch.topk(largest=False) 로 하위 n 개의 정확한 인덱스 추출 — tie-breaking 결정론적
+            # (gemini #3307531740): kthvalue + mag<=kth 방식은 동률 시 의도보다 많이 prune 위험
+            _, topk_idx = torch.topk(alive_mag, n_to_prune, largest=False)
+            prune_4d = alive_indices[topk_idx]  # (n_to_prune, 4)
+            self.edge_mask[prune_4d[:, 0], prune_4d[:, 1], prune_4d[:, 2], prune_4d[:, 3]] = 0.0
+        return n_to_prune
 
     def effective_sparsity(self) -> float:
         """전체 edge 중 영구 prune (mask=0) 비율."""

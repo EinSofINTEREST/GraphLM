@@ -72,6 +72,16 @@ class HybridTransformerTrainConfig:
     seed: int = 0
     device: str = "cpu"
 
+    def __post_init__(self) -> None:
+        # Phase 15 prune 인자 입력 검증 (Copilot #3307536553) — 잘못된 값의 silent no-op 회피.
+        if not 0.0 <= self.prune_fraction <= 1.0:
+            raise ValueError(f"prune_fraction must be in [0, 1], got {self.prune_fraction}")
+        if self.prune_at_step is not None and not 1 <= self.prune_at_step <= self.max_steps:
+            raise ValueError(
+                f"prune_at_step must be in [1, max_steps={self.max_steps}], "
+                f"got {self.prune_at_step}"
+            )
+
 
 class HybridGraphTransformerLM(nn.Module):
     """Small char-LM Transformer with arch-dispatched FFN.
