@@ -253,24 +253,35 @@ def _compute_dense_grad_scores(
             saved_masks[name] = mod.edge_mask.clone()
             mod.edge_mask.fill_(1.0)
             target_modules[name] = mod
-    # 2. 별도 forward (현재 train step 의 gradient 와 분리)
-    logits = model(x)
-    loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
-    # 3. torch.autograd.grad 로 직접 gradient 추출 (.grad 미사용, side-effect 없음)
-    weights_to_grad = [mod.weight for mod in target_modules.values() if mod.weight.requires_grad]
-    grads = torch.autograd.grad(loss, weights_to_grad, allow_unused=True) if weights_to_grad else []
-    # 4. score 추출 + mask 복원
-    scores: dict[str, Tensor] = {}
-    grad_iter = iter(grads)
-    for name, mod in target_modules.items():
-        mod.edge_mask.copy_(saved_masks[name])
-        if not mod.weight.requires_grad:
-            # 동결 layer — 0 score (regrow 우선순위 최하)
-            scores[name] = torch.zeros_like(mod.weight)
-            continue
-        g = next(grad_iter)
-        scores[name] = g.detach().abs().clone() if g is not None else torch.zeros_like(mod.weight)
-    return scores
+    try:
+        # 2. 별도 forward (현재 train step 의 gradient 와 분리)
+        logits = model(x)
+        loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
+        # 3. torch.autograd.grad 로 직접 gradient 추출 (.grad 미사용, side-effect 없음)
+        weights_to_grad = [
+            mod.weight for mod in target_modules.values() if mod.weight.requires_grad
+        ]
+        grads = (
+            torch.autograd.grad(loss, weights_to_grad, allow_unused=True) if weights_to_grad else []
+        )
+        # 4. score 추출
+        scores: dict[str, Tensor] = {}
+        grad_iter = iter(grads)
+        for name, mod in target_modules.items():
+            if not mod.weight.requires_grad:
+                # 동결 layer — 0 score (regrow 우선순위 최하)
+                scores[name] = torch.zeros_like(mod.weight)
+                continue
+            g = next(grad_iter)
+            scores[name] = (
+                g.detach().abs().clone() if g is not None else torch.zeros_like(mod.weight)
+            )
+        return scores
+    finally:
+        # 5. mask 복원 — 예외 발생해도 항상 실행 (CodeRabbit #3308022927). 미복원 시 학습이
+        # all-1 mask 로 계속되어 paradigm 의 prune 효과 사라짐.
+        for name, mod in target_modules.items():
+            mod.edge_mask.copy_(saved_masks[name])
 
 
 def _dst_swap_step(
