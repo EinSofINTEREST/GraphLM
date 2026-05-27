@@ -31,7 +31,7 @@ cited_in: []
   - visible `v` (data dimension)
   - hidden `h` (latent feature)
   - weight `W` (only cross-layer)
-- 학습: 본 chapter 는 framework 정의가 주, 실용적 학습 알고리즘은 Hinton 1985 의 contrastive divergence 가 응용 (직접 학습 알고리즘 제시 X)
+- 학습: 본 chapter 는 framework 정의가 주, 직접적 학습 알고리즘 제시 없음. BM 의 positive/negative phase contrastive 규칙 (Hinton+Sejnowski 1985) 이 자연 적용 가능하나 계산 비용 막대. 실용적 RBM 학습은 후일 Hinton 2002 의 contrastive divergence (CD-1) 로 가능해짐.
 - 핵심 수식:
   $$ E(v, h) = -v^\top W h - a^\top v - b^\top h $$
   $$ P(v, h) = \frac{\exp(-E(v, h))}{Z}, \quad P(h_j = 1 | v) = \sigma(W_{:j}^\top v + b_j) $$

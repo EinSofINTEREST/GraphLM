@@ -72,7 +72,7 @@ cited_in: []
 
 ### dynamic 위상 변화의 BM 관점
 
-- Phase 15 의 edge prune (mask=0) 은 BM 에서 `w_ij → -∞` 시 `s_i, s_j` 간 interaction 차단과 등가.
+- Phase 15 의 edge prune (mask=0) 은 BM 에서 `w_ij = 0` (edge 자체 제거) 과 등가 — 두 unit 사이 contribution 정확히 0. (`w_ij → -∞` 는 다른 동작 — 두 unit 동시 1 강하게 억제하는 강한 음의 interaction 이라 prune 과 별개.)
 - BM 의 학습은 energy landscape 의 모양 자체를 학습 — paradigm 의 *topology + magnitude 동시 학습* 의 mathematical precursor.
 - **차용할 아이디어**: BM 의 positive/negative phase 의 contrastive 통계 → paradigm 에서 *학습된 connectivity 의 importance metric* 으로 활용 가능 (어떤 edge 가 data-driven activity 와 prior activity 의 차이가 큰가).
 

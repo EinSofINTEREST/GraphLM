@@ -65,16 +65,20 @@ cited_in: []
 |---|---|
 | RBM 1 학습 → freeze → RBM 2 학습 → ... | Net2Net/LiGO 식 layer 추가 후 학습 |
 | 각 layer 가 lower-layer 의 latent 표현을 새로 학습 | growth 후 신규 layer 가 기존 representation 보존하며 학습 |
-| function preservation 보장 (variational bound) | function preservation 보장 (Net2Net 의 핵심) |
+| **variational bound 보장** — 새 layer 가 data log-likelihood 의 lower bound 를 안 떨어뜨림 (generative quality 측면) | **function preservation 보장** — 새 unit 의 forward output 이 기존 함수와 정확히 같음 (Net2Net 의 핵심, 함수적 동치) |
 | greedy → 후속 fine-tune | growth → continued training |
 
 - **공통점**: 모델을 한 번에 학습 안 하고 **점진적 깊이/너비 확장 + 단계별 학습** 이라는 핵심 idea.
-- **차이점**: DBN 은 generative + unsupervised, modern growth (Net2Net/LiGO) 는 discriminative + supervised. DBN 의 pre-training 가치는 LLM era 의 BERT/GPT 의 unsupervised pre-training 으로 *재발견* 됨.
+- **차이점 (중요)**: DBN 의 *variational bound 개선* 과 Net2Net 의 *function preservation* 은 **다른 종류의 보장**:
+  - DBN: data likelihood 의 lower bound 가 worse 안 됨 (generative model 의 fit 측정 측면)
+  - Net2Net: 확장 직후 모델의 forward output 이 확장 전과 정확히 동일 (학습 안정성 측면)
+  - 둘 다 "확장이 안전하다" 의 다른 표현이지만 mathematical 의미는 분리해야 함.
+- DBN 은 generative + unsupervised, modern growth (Net2Net/LiGO) 는 discriminative + supervised. DBN 의 pre-training 가치는 LLM era 의 BERT/GPT 의 unsupervised pre-training 으로 *재발견* 됨.
 
-### Phase 16 (Net2Net/LiGO) 의 historical roots
+### Phase 16 (Net2Net/LiGO) 의 historical spirit
 
-- Phase 16 후보의 **function-preserving growth** 는 DBN 의 *layer 추가가 variational bound 를 깨지 않는다* 와 동일한 spirit.
-- DBN 은 "더 깊게 쌓아도 worse 아님" 의 첫 deep generative 증명. paradigm 의 Phase 16+ 의 *grow + shrink 로 capacity 동적 조정* 도 같은 가정에 의존.
+- DBN 과 Net2Net 의 보장 *종류* 는 다르나, "**확장 후에도 안전**" 이라는 spirit 은 공통 — 둘 다 paradigm 의 Phase 16+ *grow + shrink 로 capacity 동적 조정* 의 historical 근거.
+- DBN 은 "더 깊게 쌓아도 worse 아님" 의 첫 deep generative 증명. Net2Net 는 "더 wider/deeper 로 가도 forward 동일" 의 discriminative 증명. paradigm 은 후자에 직접 정렬.
 
 ### Energy + deep 의 관계
 
