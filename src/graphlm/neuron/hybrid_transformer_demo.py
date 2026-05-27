@@ -470,9 +470,12 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
             and config.grow_ffn_target is not None
         ):
             grow_info = _grow_ffn_in_model(model, config.grow_ffn_target, config.group_size)
-            # Parameter 객체 replace 됐으므로 optimizer 재생성 (옛 state 손실)
-            optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
-            grow_event = {"step": step, **grow_info}
+            # plain arch / HybridGraphFFN 없는 모델은 실제로 확장된 layer 0개 — optimizer 재생성
+            # + grow_event 기록 모두 건너뜀 (Copilot #3308323642, 주석과 동작 일치).
+            if grow_info["n_layers_grown"] > 0:
+                # Parameter 객체 replace 됐으므로 optimizer 재생성 (옛 state 손실)
+                optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
+                grow_event = {"step": step, **grow_info}
 
     n_last = min(100, len(losses))
     final_loss = sum(losses[-n_last:]) / n_last if n_last > 0 else 0.0

@@ -375,6 +375,18 @@ class HybridGraphLinear(nn.Module):
 
     # ── Phase 16b: shape expansion (Net2Net-style) ──────────────
 
+    @staticmethod
+    def _grow_param(old: nn.Parameter, new_data: Tensor, dim: int) -> nn.Parameter:
+        """Concat old + new_data along ``dim``, preserving ``requires_grad``.
+
+        Copilot #3308323611 — ``.data`` 비권장 + freeze (requires_grad=False) 한 layer 가
+        Parameter replace 후 unfreeze 되는 buf 회피. ``detach().clone()`` 사용 + 기존 flag 복원.
+        """
+        combined = torch.cat([old.detach().clone(), new_data], dim=dim)
+        new_param = nn.Parameter(combined)
+        new_param.requires_grad_(old.requires_grad)
+        return new_param
+
     def grow_out(self, n_new_groups: int) -> None:
         """G_out 차원을 ``n_new_groups`` 만큼 확장 (out_features 증가).
 
@@ -408,12 +420,12 @@ class HybridGraphLinear(nn.Module):
                 device=self.weight.device,
                 dtype=self.weight.dtype,
             ).uniform_(-bound, bound)
-            self.weight = nn.Parameter(torch.cat([self.weight.data, new_w], dim=0))
+            self.weight = self._grow_param(self.weight, new_w, dim=0)
             # adj_outer / adj_inner / edge_mask 새 rows 는 1.0
             new_outer = torch.ones(
                 n_new_groups, G_in, device=self.adj_outer.device, dtype=self.adj_outer.dtype
             )
-            self.adj_outer = nn.Parameter(torch.cat([self.adj_outer.data, new_outer], dim=0))
+            self.adj_outer = self._grow_param(self.adj_outer, new_outer, dim=0)
             new_inner = torch.ones(
                 n_new_groups,
                 G_in,
@@ -422,7 +434,7 @@ class HybridGraphLinear(nn.Module):
                 device=self.adj_inner.device,
                 dtype=self.adj_inner.dtype,
             )
-            self.adj_inner = nn.Parameter(torch.cat([self.adj_inner.data, new_inner], dim=0))
+            self.adj_inner = self._grow_param(self.adj_inner, new_inner, dim=0)
             new_mask = torch.ones(
                 n_new_groups, G_in, k, k, device=self.edge_mask.device, dtype=self.edge_mask.dtype
             )
@@ -432,7 +444,7 @@ class HybridGraphLinear(nn.Module):
                 new_bias = torch.zeros(
                     n_new_groups * k, device=self.bias.device, dtype=self.bias.dtype
                 )
-                self.bias = nn.Parameter(torch.cat([self.bias.data, new_bias], dim=0))
+                self.bias = self._grow_param(self.bias, new_bias, dim=0)
             # 메타데이터 갱신
             self.n_groups_out += n_new_groups
             self.out_features += n_new_groups * k
@@ -459,12 +471,12 @@ class HybridGraphLinear(nn.Module):
             new_w = torch.zeros(
                 G_out, n_new_groups, k, k, device=self.weight.device, dtype=self.weight.dtype
             )
-            self.weight = nn.Parameter(torch.cat([self.weight.data, new_w], dim=1))
+            self.weight = self._grow_param(self.weight, new_w, dim=1)
             # adj_outer / adj_inner / edge_mask 새 columns 는 1.0
             new_outer = torch.ones(
                 G_out, n_new_groups, device=self.adj_outer.device, dtype=self.adj_outer.dtype
             )
-            self.adj_outer = nn.Parameter(torch.cat([self.adj_outer.data, new_outer], dim=1))
+            self.adj_outer = self._grow_param(self.adj_outer, new_outer, dim=1)
             new_inner = torch.ones(
                 G_out,
                 n_new_groups,
@@ -473,7 +485,7 @@ class HybridGraphLinear(nn.Module):
                 device=self.adj_inner.device,
                 dtype=self.adj_inner.dtype,
             )
-            self.adj_inner = nn.Parameter(torch.cat([self.adj_inner.data, new_inner], dim=1))
+            self.adj_inner = self._grow_param(self.adj_inner, new_inner, dim=1)
             new_mask = torch.ones(
                 G_out, n_new_groups, k, k, device=self.edge_mask.device, dtype=self.edge_mask.dtype
             )
