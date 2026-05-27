@@ -362,11 +362,16 @@ class HybridGraphLinear(nn.Module):
         return n_to_regrow
 
     def _activate_edges(self, indices_4d: Tensor, *, reset_weight: bool) -> None:
-        """주어진 4D 인덱스 위치의 mask=1 + (옵션) weight=0 초기화 (internal helper)."""
+        """주어진 4D 인덱스 위치의 mask=1 + (옵션) weight=0 초기화 (internal helper).
+
+        ``self.weight`` 는 Parameter — `.data` 직접 수정은 autograd 우회로 비권장
+        (gemini #3307952463 / Copilot #3307955940). ``with torch.no_grad()`` + in-place 갱신.
+        """
         i0, i1, i2, i3 = indices_4d[:, 0], indices_4d[:, 1], indices_4d[:, 2], indices_4d[:, 3]
-        self.edge_mask[i0, i1, i2, i3] = 1.0
-        if reset_weight:
-            self.weight.data[i0, i1, i2, i3] = 0.0
+        with torch.no_grad():
+            self.edge_mask[i0, i1, i2, i3] = 1.0
+            if reset_weight:
+                self.weight[i0, i1, i2, i3] = 0.0
 
     def extra_repr(self) -> str:
         return (

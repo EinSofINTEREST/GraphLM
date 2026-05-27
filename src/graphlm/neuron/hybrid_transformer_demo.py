@@ -70,10 +70,12 @@ class HybridTransformerTrainConfig:
     prune_fraction: float = 0.0
 
     # Phase 16a: DST regrow (constant sparsity 유지)
-    # prune_at_step 직후 + 이후 dst_period 마다 prune-and-regrow cycle 실행.
-    # regrow_method=None → Phase 15 호환 (static prune, no regrow).
+    # 동작: regrow_method != None AND dst_period != None 일 때만 DST cycle 실행.
+    # prune_at_step 이후 dst_period 마다 prune-and-regrow 실행 (dst_end_step 까지).
+    # regrow_method=None → no regrow (Phase 15 호환, static prune).
     regrow_method: Literal["random", "rigl"] | None = None
-    # DST cycle 주기 (default None = 첫 cycle 만, Phase 15 와 동일 형태)
+    # DST cycle 주기 (default None = DST cycle 미실행 = Phase 15 호환)
+    # (Copilot #3307955919 — 주석/동작 일치)
     dst_period: int | None = None
     # DST cycle 에서 매번 swap 할 alive 비율 (= prune k% + regrow k%, sparsity 보존)
     dst_swap_fraction: float = 0.1
@@ -236,37 +238,38 @@ def _compute_dense_grad_scores(
 ) -> dict[str, Tensor]:
     """RigL 용 dense gradient magnitude 측정.
 
-    edge_mask 를 일시적으로 모두 1 로 설정 → forward + backward → ``|weight.grad|`` 측정 →
-    edge_mask 복원. pruned edge 도 dense gradient 가 측정되어 regrow priority 결정에 활용.
+    edge_mask 를 일시적으로 모두 1 로 설정 → forward → ``torch.autograd.grad`` 로 weight gradient
+    직접 추출 → edge_mask 복원. 모델의 ``.grad`` 속성을 건드리지 않아 train loop 의 gradient
+    accumulation / 동결 layer 와 안전 (gemini #3307952471).
 
     Returns:
         layer 이름 → score tensor (shape == edge_mask shape).
     """
     # 1. mask 저장 + dense 설정
     saved_masks: dict[str, Tensor] = {}
+    target_modules: dict[str, HybridGraphLinear] = {}
     for name, mod in model.named_modules():
         if isinstance(mod, HybridGraphLinear):
             saved_masks[name] = mod.edge_mask.clone()
             mod.edge_mask.fill_(1.0)
-    # 2. 별도 forward + backward (현재 train step 의 gradient 와 분리)
-    for p in model.parameters():
-        if p.grad is not None:
-            p.grad = None
+            target_modules[name] = mod
+    # 2. 별도 forward (현재 train step 의 gradient 와 분리)
     logits = model(x)
     loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
-    loss.backward()
-    # 3. score 추출
+    # 3. torch.autograd.grad 로 직접 gradient 추출 (.grad 미사용, side-effect 없음)
+    weights_to_grad = [mod.weight for mod in target_modules.values() if mod.weight.requires_grad]
+    grads = torch.autograd.grad(loss, weights_to_grad, allow_unused=True) if weights_to_grad else []
+    # 4. score 추출 + mask 복원
     scores: dict[str, Tensor] = {}
-    for name, mod in model.named_modules():
-        if isinstance(mod, HybridGraphLinear):
-            scores[name] = mod.weight.grad.detach().abs().clone()
-    # 4. mask 복원 + grad clear (train loop 에서 다시 사용 안 하게)
-    for name, mod in model.named_modules():
-        if isinstance(mod, HybridGraphLinear):
-            mod.edge_mask.copy_(saved_masks[name])
-    for p in model.parameters():
-        if p.grad is not None:
-            p.grad = None
+    grad_iter = iter(grads)
+    for name, mod in target_modules.items():
+        mod.edge_mask.copy_(saved_masks[name])
+        if not mod.weight.requires_grad:
+            # 동결 layer — 0 score (regrow 우선순위 최하)
+            scores[name] = torch.zeros_like(mod.weight)
+            continue
+        g = next(grad_iter)
+        scores[name] = g.detach().abs().clone() if g is not None else torch.zeros_like(mod.weight)
     return scores
 
 

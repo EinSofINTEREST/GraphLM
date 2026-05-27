@@ -402,21 +402,23 @@ def test_regrow_then_forward_gradient_flows():
 
 
 def test_constant_sparsity_prune_then_regrow():
-    """prune N + regrow N → sparsity 변경 없음 (DST constant sparsity)."""
+    """DST cycle: 같은 수 prune + regrow → sparsity 정확히 일정 (Copilot #3307955897 강화)."""
     torch.manual_seed(0)
     lin = HybridGraphLinear(16, 16, group_size=4)
     lin.prune_bottom_fraction(0.5)
-    sparsity_after_prune = lin.effective_sparsity()
-    # 동량 regrow
-    n_prune = lin.n_pruned_edges()
-    target_swap = int(n_prune * 0.2)  # 20% swap
-    lin.prune_bottom_fraction(0.2)  # alive 의 20% 추가 prune
-    lin.regrow_random(target_swap)
-    # 정확히 같지는 않으나 근방 — prune+regrow 동량이면 sparsity 일정
-    # 더 정확히: 새 prune 수 == regrow 수면 sparsity 동일
-    sparsity_after_dst = lin.effective_sparsity()
-    # 두 sparsity 차이는 prune/regrow 의 정확성에 따라 +/-
-    assert abs(sparsity_after_dst - sparsity_after_prune) < 0.1
+    sparsity_before_cycle = lin.effective_sparsity()
+    alive_before_cycle = lin.n_alive_edges()
+
+    # DST cycle: 두 번째 prune 의 return 값을 받아 그 수만큼 정확히 regrow
+    n_pruned_in_cycle = lin.prune_bottom_fraction(0.2)  # alive 의 20%
+    n_regrown = lin.regrow_random(n_pruned_in_cycle)
+    assert n_regrown == n_pruned_in_cycle, "DST cycle: regrow 수가 prune 수와 일치해야 함"
+
+    # 정확히 동일 sparsity / alive 유지 (constant sparsity)
+    assert lin.effective_sparsity() == sparsity_before_cycle, (
+        f"DST 후 sparsity 불일치: {lin.effective_sparsity()} vs {sparsity_before_cycle}"
+    )
+    assert lin.n_alive_edges() == alive_before_cycle
 
 
 def test_edge_mask_in_state_dict():
