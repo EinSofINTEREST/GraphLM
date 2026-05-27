@@ -421,6 +421,129 @@ def test_constant_sparsity_prune_then_regrow():
     assert lin.n_alive_edges() == alive_before_cycle
 
 
+# ── Phase 16b: shape expansion (Net2Net) ─────────────────────
+
+
+def test_grow_out_shape_increased():
+    """grow_out 후 out_features / n_groups_out 가 정확히 증가."""
+    lin = HybridGraphLinear(16, 24, group_size=4)  # G_out=6, G_in=4
+    lin.grow_out(2)  # G_out: 6 → 8
+    assert lin.n_groups_out == 8
+    assert lin.out_features == 32
+    assert lin.weight.shape == (8, 4, 4, 4)
+    assert lin.adj_outer.shape == (8, 4)
+    assert lin.adj_inner.shape == (8, 4, 4, 4)
+    assert lin.edge_mask.shape == (8, 4, 4, 4)
+    assert lin.bias.shape == (32,)
+
+
+def test_grow_in_shape_increased():
+    """grow_in 후 in_features / n_groups_in 가 정확히 증가."""
+    lin = HybridGraphLinear(16, 24, group_size=4)  # G_in=4
+    lin.grow_in(3)  # G_in: 4 → 7
+    assert lin.n_groups_in == 7
+    assert lin.in_features == 28
+    assert lin.weight.shape == (6, 7, 4, 4)
+    assert lin.adj_outer.shape == (6, 7)
+    assert lin.adj_inner.shape == (6, 7, 4, 4)
+    assert lin.edge_mask.shape == (6, 7, 4, 4)
+
+
+def test_grow_in_function_preservation():
+    """grow_in 후 기존 in_features 만큼의 input 에 대한 forward 동일 (새 input=anything)."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 24, group_size=4)
+    x_old = torch.randn(2, 8, 16)
+    lin.eval()
+    with torch.no_grad():
+        y_before = lin(x_old)
+
+    lin.grow_in(2)  # in_features: 16 → 24
+    # 새 input position 에 임의 값을 채워서 확장된 input 만들기
+    x_extra = torch.randn(2, 8, 8)  # 새 8 차원 (G_in 2 × group_size 4)
+    x_new = torch.cat([x_old, x_extra], dim=-1)
+    with torch.no_grad():
+        y_after = lin(x_new)
+    # 새 input 의 forward 기여 = 0 (weight=0) → 기존 input 부분의 forward 결과만 남음 → y_after == y_before
+    assert torch.allclose(y_after, y_before, atol=1e-5), (
+        f"grow_in function preservation 깨짐: max |diff| = {(y_after - y_before).abs().max().item()}"
+    )
+
+
+def test_grow_out_then_grow_in_downstream_preserves_forward():
+    """FFN-style: fc1.grow_out(n) + fc2.grow_in(n) 동시 적용 → 2-layer chain forward 동일."""
+    torch.manual_seed(0)
+    fc1 = HybridGraphLinear(16, 32, group_size=4)  # 16 → 32
+    fc2 = HybridGraphLinear(32, 16, group_size=4)  # 32 → 16
+    x = torch.randn(2, 8, 16)
+    fc1.eval()
+    fc2.eval()
+    with torch.no_grad():
+        # GELU 없이 단순 chain — function preservation 의 핵심은 fc2 의 새 input weight=0
+        y_before = fc2(fc1(x))
+
+    # 확장: fc1 의 G_out 늘리고 fc2 의 G_in 동일 증가
+    fc1.grow_out(2)  # 32 → 40
+    fc2.grow_in(2)  # 32 → 40
+    assert fc1.out_features == 40
+    assert fc2.in_features == 40
+
+    with torch.no_grad():
+        y_after = fc2(fc1(x))
+    # function preservation — 새 ffn unit 의 weight 가 0 이라 forward 결과 정확히 동일
+    assert torch.allclose(y_after, y_before, atol=1e-5), (
+        f"FFN grow function preservation 깨짐: max |diff| = {(y_after - y_before).abs().max().item()}"
+    )
+
+
+def test_grow_out_then_train_step_runs():
+    """grow_out 후 학습 가능 — gradient 흐름 정상."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 24, group_size=4)
+    lin.grow_out(2)
+    # parameter 가 replace 되었으므로 새 parameter 가 list 에 있는지
+    params = list(lin.parameters())
+    assert any(p.shape == (8, 4, 4, 4) for p in params if p.dim() == 4)
+    # forward + backward
+    x = torch.randn(2, 16)
+    lin(x).sum().backward()
+    # 새 weight 의 grad 도 흐름
+    assert lin.weight.grad is not None
+    assert lin.weight.grad.shape == lin.weight.shape
+
+
+def test_grow_in_then_train_step_runs():
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 24, group_size=4)
+    lin.grow_in(2)
+    x = torch.randn(2, 24)  # 확장된 in_features
+    lin(x).sum().backward()
+    assert lin.weight.grad is not None
+
+
+def test_grow_negative_rejected():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    with pytest.raises(ValueError, match="positive int"):
+        lin.grow_out(0)
+    with pytest.raises(ValueError, match="positive int"):
+        lin.grow_in(-1)
+
+
+def test_grow_preserves_existing_prune_mask():
+    """grow 가 기존 edge_mask 의 pruned 위치를 보존 (확장된 새 위치만 mask=1 추가)."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    pruned_count_before = lin.n_pruned_edges()
+
+    lin.grow_out(2)
+    # 기존 pruned 위치는 그대로, 새 row 는 모두 alive (mask=1)
+    pruned_count_after = lin.n_pruned_edges()
+    assert pruned_count_after == pruned_count_before, (
+        f"기존 pruned 손실: before={pruned_count_before}, after={pruned_count_after}"
+    )
+
+
 def test_edge_mask_in_state_dict():
     """edge_mask 가 state_dict 에 포함되어 save/load 보존."""
     lin1 = HybridGraphLinear(16, 16, group_size=4)
