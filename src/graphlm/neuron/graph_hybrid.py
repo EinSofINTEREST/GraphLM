@@ -320,9 +320,7 @@ class HybridGraphLinear(nn.Module):
             self._activate_edges(regrow_4d, reset_weight=reset_weight)
         return n_to_regrow
 
-    def regrow_by_score(
-        self, n: int, scores: Tensor, *, reset_weight: bool = True
-    ) -> int:
+    def regrow_by_score(self, n: int, scores: Tensor, *, reset_weight: bool = True) -> int:
         """``scores`` 기반 상위 n 개 pruned 위치를 un-mask (RigL 스타일).
 
         RigL: caller 가 dense gradient magnitude 를 scores 로 전달. 가장 큰 신호가 있던 pruned
@@ -353,8 +351,10 @@ class HybridGraphLinear(nn.Module):
             n_to_regrow = min(n, n_pruned)
             # pruned 위치의 score 만 추출 → top-n 선택 (largest=True)
             pruned_scores = scores[
-                pruned_indices[:, 0], pruned_indices[:, 1],
-                pruned_indices[:, 2], pruned_indices[:, 3],
+                pruned_indices[:, 0],
+                pruned_indices[:, 1],
+                pruned_indices[:, 2],
+                pruned_indices[:, 3],
             ]
             _, topk_idx = torch.topk(pruned_scores, n_to_regrow, largest=True)
             regrow_4d = pruned_indices[topk_idx]
