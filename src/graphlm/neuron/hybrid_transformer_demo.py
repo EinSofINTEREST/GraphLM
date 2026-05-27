@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from graphlm.data.tinyshakespeare import TinyShakespeareDataset, iter_random_batches
+from graphlm.neuron.graph_hybrid import HybridGraphLinear
 from graphlm.neuron.hybrid_transformer import (
     Arch,
     FullGraphTransformerBlock,
@@ -61,9 +62,25 @@ class HybridTransformerTrainConfig:
     lr: float = 3e-4
     max_steps: int = 1500
 
+    # Phase 15: edge prune (one-shot at midpoint by default)
+    # prune_at_step=None → no prune. 0 < step ≤ max_steps 면 해당 step 끝에서 prune 실행.
+    prune_at_step: int | None = None
+    # 살아있는 edge 중 하위 magnitude 비율 (prune_bottom_fraction 사용). 0.0 → no-op.
+    prune_fraction: float = 0.0
+
     # runtime
     seed: int = 0
     device: str = "cpu"
+
+    def __post_init__(self) -> None:
+        # Phase 15 prune 인자 입력 검증 (Copilot #3307536553) — 잘못된 값의 silent no-op 회피.
+        if not 0.0 <= self.prune_fraction <= 1.0:
+            raise ValueError(f"prune_fraction must be in [0, 1], got {self.prune_fraction}")
+        if self.prune_at_step is not None and not 1 <= self.prune_at_step <= self.max_steps:
+            raise ValueError(
+                f"prune_at_step must be in [1, max_steps={self.max_steps}], "
+                f"got {self.prune_at_step}"
+            )
 
 
 class HybridGraphTransformerLM(nn.Module):
@@ -160,11 +177,40 @@ def _snapshot_adj(model: HybridGraphTransformerLM) -> list[dict[str, dict[str, T
     return snapshots
 
 
-def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
-    """1 run 학습 — Phase 13 sweep unit.
+def _prune_model(model: nn.Module, fraction: float) -> dict[str, int]:
+    """모델의 모든 HybridGraphLinear 에 prune_bottom_fraction 적용.
 
-    Returns: ``losses``, ``final_loss`` (last 100 mean), ``final_adj``
-    (hybrid arch 인 경우 block 별 fc1/fc2 outer/inner snapshot list).
+    Returns:
+        per-layer pruned count (디버깅용 — layer 이름 → 신규 prune edge 수).
+    """
+    counts: dict[str, int] = {}
+    for name, mod in model.named_modules():
+        if isinstance(mod, HybridGraphLinear):
+            counts[name] = mod.prune_bottom_fraction(fraction)
+    return counts
+
+
+def _model_sparsity(model: nn.Module) -> float:
+    """모든 HybridGraphLinear edge 전체에 대한 평균 sparsity."""
+    total = 0
+    dead = 0
+    for mod in model.modules():
+        if isinstance(mod, HybridGraphLinear):
+            total += mod.edge_mask.numel()
+            dead += int((mod.edge_mask == 0).sum().item())
+    if total == 0:
+        return 0.0
+    return dead / total
+
+
+def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
+    """1 run 학습 — Phase 13/14/15 sweep unit.
+
+    Phase 15: ``config.prune_at_step`` 에 도달 시 ``config.prune_fraction`` 만큼 prune.
+    plain arch 는 HybridGraphLinear 가 없어 prune 무효 (HybridGraphTransformerLM 의 plain 도 동일).
+
+    Returns: ``losses``, ``final_loss`` (last 100 mean), ``final_adj``, ``final_sparsity``,
+    ``prune_event`` (prune 실행 시점의 step + 신규 prune edge 수).
     """
     set_seed(config.seed)
     model = HybridGraphTransformerLM(
@@ -184,8 +230,9 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     )
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
     losses: list[float] = []
+    prune_event: dict | None = None
     model.train()
-    for _step in range(1, config.max_steps + 1):
+    for step in range(1, config.max_steps + 1):
         x, y = next(data_iter)
         x, y = x.to(config.device), y.to(config.device)
         optimizer.zero_grad()
@@ -195,6 +242,19 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
         optimizer.step()
         losses.append(loss.item())
 
+        # Phase 15: prune at midpoint (or configured step)
+        if (
+            config.prune_at_step is not None
+            and step == config.prune_at_step
+            and config.prune_fraction > 0
+        ):
+            per_layer = _prune_model(model, config.prune_fraction)
+            prune_event = {
+                "step": step,
+                "total_pruned": sum(per_layer.values()),
+                "sparsity_after": _model_sparsity(model),
+            }
+
     n_last = min(100, len(losses))
     final_loss = sum(losses[-n_last:]) / n_last if n_last > 0 else 0.0
 
@@ -202,6 +262,8 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
         "losses": losses,
         "final_loss": final_loss,
         "final_adj": _snapshot_adj(model),
+        "final_sparsity": _model_sparsity(model),
+        "prune_event": prune_event,
     }
 
 
