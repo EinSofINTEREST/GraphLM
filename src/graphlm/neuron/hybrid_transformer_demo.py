@@ -26,6 +26,7 @@ from graphlm.neuron.graph_hybrid import HybridGraphLinear
 from graphlm.neuron.hybrid_transformer import (
     Arch,
     FullGraphTransformerBlock,
+    HybridGraphFFN,
     HybridGraphTransformerBlock,
     make_block,
     make_full_block,
@@ -82,6 +83,13 @@ class HybridTransformerTrainConfig:
     # DST cycle 종료 step (default None = max_steps 까지). 마지막 200 step 정도는 stabilize.
     dst_end_step: int | None = None
 
+    # Phase 16b: Net2Net-style FFN expansion (capacity 증가)
+    # 동작: grow_at_step + grow_ffn_target 둘 다 설정 시 해당 step 에서 FFN 의 ffn_dim 을
+    # target 값으로 확장 (function preservation 보장). plain arch / non-hybrid FFN 무효.
+    # 확장 직후 optimizer 재생성 (parameter 객체 replace 됐으므로).
+    grow_at_step: int | None = None
+    grow_ffn_target: int | None = None
+
     # runtime
     seed: int = 0
     device: str = "cpu"
@@ -108,6 +116,25 @@ class HybridTransformerTrainConfig:
             raise ValueError(
                 f"dst_end_step must be in [1, max_steps={self.max_steps}], got {self.dst_end_step}"
             )
+        # Phase 16b grow 검증
+        if self.grow_at_step is not None and not 1 <= self.grow_at_step <= self.max_steps:
+            raise ValueError(
+                f"grow_at_step must be in [1, max_steps={self.max_steps}], got {self.grow_at_step}"
+            )
+        if self.grow_ffn_target is not None:
+            if self.grow_ffn_target <= self.ffn_dim:
+                raise ValueError(
+                    f"grow_ffn_target ({self.grow_ffn_target}) must be > current ffn_dim "
+                    f"({self.ffn_dim})"
+                )
+            if self.grow_ffn_target % self.group_size != 0:
+                raise ValueError(
+                    f"grow_ffn_target ({self.grow_ffn_target}) must be divisible by "
+                    f"group_size ({self.group_size})"
+                )
+        # grow_at_step / grow_ffn_target 의 일관성 (둘 다 None 이거나 둘 다 set)
+        if (self.grow_at_step is None) != (self.grow_ffn_target is None):
+            raise ValueError("grow_at_step 과 grow_ffn_target 은 함께 설정 (또는 함께 None)")
 
 
 class HybridGraphTransformerLM(nn.Module):
@@ -314,6 +341,47 @@ def _dst_swap_step(
     return summary
 
 
+# ── Phase 16b: FFN shape expansion (Net2Net) ────────────────
+
+
+def _grow_ffn_in_model(model: nn.Module, target_ffn_dim: int, group_size: int) -> dict:
+    """모델의 모든 HybridGraphFFN 의 ffn_dim 을 target 으로 확장 (function-preserving).
+
+    fc1.grow_out(n) + fc2.grow_in(n) 동시 적용. n = (target - current) / group_size.
+
+    Returns:
+        {"n_layers_grown": int, "old_ffn_dim": int, "new_ffn_dim": int, "n_new_groups": int}
+        plain arch 등 HybridGraphFFN 이 없는 경우 n_layers_grown=0.
+    """
+    n_layers = 0
+    old_ffn_dim = None
+    n_new_groups = 0
+    for ffn in model.modules():
+        if not isinstance(ffn, HybridGraphFFN):
+            continue
+        current = ffn.fc1.out_features
+        if old_ffn_dim is None:
+            old_ffn_dim = current
+        if target_ffn_dim <= current:
+            continue  # 이미 충분
+        delta = target_ffn_dim - current
+        if delta % group_size != 0:
+            raise RuntimeError(
+                f"target_ffn_dim - current ({delta}) not divisible by group_size ({group_size})"
+            )
+        n_new = delta // group_size
+        ffn.fc1.grow_out(n_new)  # ffn_dim 차원 증가
+        ffn.fc2.grow_in(n_new)  # downstream — function preservation 보장
+        n_layers += 1
+        n_new_groups = n_new
+    return {
+        "n_layers_grown": n_layers,
+        "old_ffn_dim": old_ffn_dim if old_ffn_dim is not None else 0,
+        "new_ffn_dim": target_ffn_dim if n_layers > 0 else (old_ffn_dim or 0),
+        "n_new_groups": n_new_groups,
+    }
+
+
 def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     """1 run 학습 — Phase 13/14/15 sweep unit.
 
@@ -343,6 +411,7 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     losses: list[float] = []
     prune_event: dict | None = None
     dst_cycles: list[dict] = []
+    grow_event: dict | None = None
     model.train()
     for step in range(1, config.max_steps + 1):
         x, y = next(data_iter)
@@ -394,6 +463,17 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
                 }
             )
 
+        # Phase 16b: FFN expansion (function-preserving grow)
+        if (
+            config.grow_at_step is not None
+            and step == config.grow_at_step
+            and config.grow_ffn_target is not None
+        ):
+            grow_info = _grow_ffn_in_model(model, config.grow_ffn_target, config.group_size)
+            # Parameter 객체 replace 됐으므로 optimizer 재생성 (옛 state 손실)
+            optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
+            grow_event = {"step": step, **grow_info}
+
     n_last = min(100, len(losses))
     final_loss = sum(losses[-n_last:]) / n_last if n_last > 0 else 0.0
 
@@ -404,6 +484,8 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
         "final_sparsity": _model_sparsity(model),
         "prune_event": prune_event,
         "dst_cycles": dst_cycles,
+        "grow_event": grow_event,
+        "final_param_count": count_parameters(model),
     }
 
 
