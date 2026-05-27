@@ -286,6 +286,93 @@ class HybridGraphLinear(nn.Module):
         with torch.no_grad():
             return int((self.edge_mask > 0).sum().item())
 
+    # ── Phase 16a: edge regrow (DST) ────────────────────────────
+
+    def n_pruned_edges(self) -> int:
+        """현재 prune 된 edge 수 (mask=0)."""
+        with torch.no_grad():
+            return int((self.edge_mask == 0).sum().item())
+
+    def regrow_random(self, n: int, *, reset_weight: bool = True) -> int:
+        """무작위 n 개 pruned 위치를 un-mask (SET 스타일).
+
+        Args:
+            n: regrow 할 edge 수 (n_pruned_edges 이상이면 모두 살림).
+            reset_weight: True 면 regrown 위치의 ``weight`` 를 0 으로 초기화 — 옛 값이 학습 dynamics
+                에 노이즈로 작용하지 않도록 (SET/RigL 의 일반적 권장).
+
+        Returns:
+            실제 regrow 된 edge 수.
+        """
+        if n < 0:
+            raise ValueError(f"n must be >= 0, got {n}")
+        if n == 0:
+            return 0
+        with torch.no_grad():
+            pruned_indices = torch.nonzero(self.edge_mask == 0, as_tuple=False)  # (n_pruned, 4)
+            n_pruned = pruned_indices.size(0)
+            if n_pruned == 0:
+                return 0
+            n_to_regrow = min(n, n_pruned)
+            # 무작위 n 개 선택
+            perm = torch.randperm(n_pruned, device=pruned_indices.device)[:n_to_regrow]
+            regrow_4d = pruned_indices[perm]
+            self._activate_edges(regrow_4d, reset_weight=reset_weight)
+        return n_to_regrow
+
+    def regrow_by_score(self, n: int, scores: Tensor, *, reset_weight: bool = True) -> int:
+        """``scores`` 기반 상위 n 개 pruned 위치를 un-mask (RigL 스타일).
+
+        RigL: caller 가 dense gradient magnitude 를 scores 로 전달. 가장 큰 신호가 있던 pruned
+        edge 를 재활성화.
+
+        Args:
+            n: regrow 할 edge 수.
+            scores: shape == edge_mask, 각 위치의 점수 (높을수록 regrow 우선).
+            reset_weight: regrown 위치 ``weight=0`` 초기화 여부.
+
+        Returns:
+            실제 regrow 된 edge 수.
+        """
+        if n < 0:
+            raise ValueError(f"n must be >= 0, got {n}")
+        if scores.shape != self.edge_mask.shape:
+            raise ValueError(
+                f"scores shape {tuple(scores.shape)} != edge_mask shape "
+                f"{tuple(self.edge_mask.shape)}"
+            )
+        if n == 0:
+            return 0
+        with torch.no_grad():
+            pruned_indices = torch.nonzero(self.edge_mask == 0, as_tuple=False)
+            n_pruned = pruned_indices.size(0)
+            if n_pruned == 0:
+                return 0
+            n_to_regrow = min(n, n_pruned)
+            # pruned 위치의 score 만 추출 → top-n 선택 (largest=True)
+            pruned_scores = scores[
+                pruned_indices[:, 0],
+                pruned_indices[:, 1],
+                pruned_indices[:, 2],
+                pruned_indices[:, 3],
+            ]
+            _, topk_idx = torch.topk(pruned_scores, n_to_regrow, largest=True)
+            regrow_4d = pruned_indices[topk_idx]
+            self._activate_edges(regrow_4d, reset_weight=reset_weight)
+        return n_to_regrow
+
+    def _activate_edges(self, indices_4d: Tensor, *, reset_weight: bool) -> None:
+        """주어진 4D 인덱스 위치의 mask=1 + (옵션) weight=0 초기화 (internal helper).
+
+        ``self.weight`` 는 Parameter — `.data` 직접 수정은 autograd 우회로 비권장
+        (gemini #3307952463 / Copilot #3307955940). ``with torch.no_grad()`` + in-place 갱신.
+        """
+        i0, i1, i2, i3 = indices_4d[:, 0], indices_4d[:, 1], indices_4d[:, 2], indices_4d[:, 3]
+        with torch.no_grad():
+            self.edge_mask[i0, i1, i2, i3] = 1.0
+            if reset_weight:
+                self.weight[i0, i1, i2, i3] = 0.0
+
     def extra_repr(self) -> str:
         return (
             f"in_features={self.in_features}, out_features={self.out_features}, "

@@ -277,6 +277,150 @@ def test_prune_invalid_fraction_rejected():
         lin.prune_bottom_fraction(1.5)
 
 
+# ── Phase 16a: edge regrow (DST) ─────────────────────────────
+
+
+def test_n_pruned_edges_consistent_with_alive():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    total = lin.edge_mask.numel()
+    assert lin.n_pruned_edges() + lin.n_alive_edges() == total
+
+
+def test_regrow_random_basic():
+    """random regrow 가 정확히 n 개 살리고 alive count 증가."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    alive_before = lin.n_alive_edges()
+    n_regrown = lin.regrow_random(50, reset_weight=True)
+    assert n_regrown == 50
+    assert lin.n_alive_edges() == alive_before + 50
+
+
+def test_regrow_random_reset_weight_zeros():
+    """reset_weight=True → 새로 살린 위치의 weight=0."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    pruned_before = lin.edge_mask == 0
+    n = lin.regrow_random(30, reset_weight=True)
+    # 새로 살린 위치 = pruned_before AND mask_now>0
+    new_alive = pruned_before & (lin.edge_mask > 0)
+    assert int(new_alive.sum().item()) == n
+    assert torch.all(lin.weight.data[new_alive] == 0.0)
+
+
+def test_regrow_random_no_reset_preserves_weight():
+    """reset_weight=False → weight 값 보존."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    # weight 의 prune 위치 값 기록
+    pruned_before = lin.edge_mask == 0
+    weight_at_pruned = lin.weight.data[pruned_before].clone()
+    lin.regrow_random(30, reset_weight=False)
+    # 일부 위치는 다시 alive 됨 — 그 위치의 weight 가 원래 값과 같은지 (변경 없음) 확인
+    # 모든 pruned_before 위치의 weight 가 변경 안 됐어야 함
+    assert torch.equal(lin.weight.data[pruned_before], weight_at_pruned)
+
+
+def test_regrow_more_than_pruned_caps_at_pruned():
+    """n > n_pruned 이면 모든 pruned 만큼만 regrow."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.3)
+    n_pruned = lin.n_pruned_edges()
+    n = lin.regrow_random(99999)
+    assert n == n_pruned
+    assert lin.n_pruned_edges() == 0
+
+
+def test_regrow_zero_noop():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    assert lin.regrow_random(0) == 0
+
+
+def test_regrow_negative_rejected():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    with pytest.raises(ValueError, match="n must be >= 0"):
+        lin.regrow_random(-1)
+
+
+def test_regrow_by_score_picks_top_n():
+    """scores 기반 regrow 가 정확히 top-n 위치 선택."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    # scores: pruned 위치마다 다른 값 (rank 가능)
+    scores = torch.zeros_like(lin.edge_mask)
+    pruned_indices = torch.nonzero(lin.edge_mask == 0, as_tuple=False)
+    # 첫 10 위치에 가장 큰 score
+    for rank, (i0, i1, i2, i3) in enumerate(pruned_indices[:10]):
+        scores[i0, i1, i2, i3] = 100.0 - rank
+    n = lin.regrow_by_score(5, scores)
+    assert n == 5
+    # 첫 5 위치만 alive 됐는지
+    for i0, i1, i2, i3 in pruned_indices[:5]:
+        assert lin.edge_mask[i0, i1, i2, i3] == 1.0
+    # 다음 5 위치는 여전히 pruned
+    for i0, i1, i2, i3 in pruned_indices[5:10]:
+        assert lin.edge_mask[i0, i1, i2, i3] == 0.0
+
+
+def test_regrow_by_score_wrong_shape_rejected():
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    bad_scores = torch.zeros(10)
+    with pytest.raises(ValueError, match="shape"):
+        lin.regrow_by_score(3, bad_scores)
+
+
+def test_regrow_then_forward_gradient_flows():
+    """regrow 후 forward 가 새 edge 에서 정상 grad 흐름 (mask=1 효과)."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(
+        16,
+        16,
+        group_size=4,
+        adj_outer_init="uniform_around_one",
+        adj_inner_init="uniform_around_one",
+    )
+    lin.prune_bottom_fraction(0.5)
+    # regrow 한 위치
+    pruned_before = lin.edge_mask == 0
+    lin.regrow_random(30, reset_weight=True)
+    regrown_positions = pruned_before & (lin.edge_mask > 0)
+    # forward + backward — regrown 위치는 weight=0 이지만 mask=1 이라 grad 는 흘러야 함
+    x = torch.randn(4, 16)
+    lin(x).sum().backward()
+    # regrown 위치의 weight grad 가 nonzero (= 살아있음 증명)
+    grad_at_regrown = lin.weight.grad[regrown_positions]
+    assert (grad_at_regrown.abs().sum() > 0).item(), (
+        "regrow 후 새 edge 의 weight grad 가 모두 0 — gradient 가 안 흐름"
+    )
+
+
+def test_constant_sparsity_prune_then_regrow():
+    """DST cycle: 같은 수 prune + regrow → sparsity 정확히 일정 (Copilot #3307955897 강화)."""
+    torch.manual_seed(0)
+    lin = HybridGraphLinear(16, 16, group_size=4)
+    lin.prune_bottom_fraction(0.5)
+    sparsity_before_cycle = lin.effective_sparsity()
+    alive_before_cycle = lin.n_alive_edges()
+
+    # DST cycle: 두 번째 prune 의 return 값을 받아 그 수만큼 정확히 regrow
+    n_pruned_in_cycle = lin.prune_bottom_fraction(0.2)  # alive 의 20%
+    n_regrown = lin.regrow_random(n_pruned_in_cycle)
+    assert n_regrown == n_pruned_in_cycle, "DST cycle: regrow 수가 prune 수와 일치해야 함"
+
+    # 정확히 동일 sparsity / alive 유지 (constant sparsity)
+    assert lin.effective_sparsity() == sparsity_before_cycle, (
+        f"DST 후 sparsity 불일치: {lin.effective_sparsity()} vs {sparsity_before_cycle}"
+    )
+    assert lin.n_alive_edges() == alive_before_cycle
+
+
 def test_edge_mask_in_state_dict():
     """edge_mask 가 state_dict 에 포함되어 save/load 보존."""
     lin1 = HybridGraphLinear(16, 16, group_size=4)

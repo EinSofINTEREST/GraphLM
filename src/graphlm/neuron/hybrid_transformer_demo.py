@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 import torch.nn.functional as F
@@ -68,6 +69,19 @@ class HybridTransformerTrainConfig:
     # 살아있는 edge 중 하위 magnitude 비율 (prune_bottom_fraction 사용). 0.0 → no-op.
     prune_fraction: float = 0.0
 
+    # Phase 16a: DST regrow (constant sparsity 유지)
+    # 동작: regrow_method != None AND dst_period != None 일 때만 DST cycle 실행.
+    # prune_at_step 이후 dst_period 마다 prune-and-regrow 실행 (dst_end_step 까지).
+    # regrow_method=None → no regrow (Phase 15 호환, static prune).
+    regrow_method: Literal["random", "rigl"] | None = None
+    # DST cycle 주기 (default None = DST cycle 미실행 = Phase 15 호환)
+    # (Copilot #3307955919 — 주석/동작 일치)
+    dst_period: int | None = None
+    # DST cycle 에서 매번 swap 할 alive 비율 (= prune k% + regrow k%, sparsity 보존)
+    dst_swap_fraction: float = 0.1
+    # DST cycle 종료 step (default None = max_steps 까지). 마지막 200 step 정도는 stabilize.
+    dst_end_step: int | None = None
+
     # runtime
     seed: int = 0
     device: str = "cpu"
@@ -80,6 +94,19 @@ class HybridTransformerTrainConfig:
             raise ValueError(
                 f"prune_at_step must be in [1, max_steps={self.max_steps}], "
                 f"got {self.prune_at_step}"
+            )
+        # Phase 16a regrow 검증
+        if self.regrow_method not in (None, "random", "rigl"):
+            raise ValueError(
+                f"regrow_method must be None / 'random' / 'rigl', got {self.regrow_method!r}"
+            )
+        if not 0.0 <= self.dst_swap_fraction <= 1.0:
+            raise ValueError(f"dst_swap_fraction must be in [0, 1], got {self.dst_swap_fraction}")
+        if self.dst_period is not None and self.dst_period < 1:
+            raise ValueError(f"dst_period must be >= 1, got {self.dst_period}")
+        if self.dst_end_step is not None and not 1 <= self.dst_end_step <= self.max_steps:
+            raise ValueError(
+                f"dst_end_step must be in [1, max_steps={self.max_steps}], got {self.dst_end_step}"
             )
 
 
@@ -203,6 +230,90 @@ def _model_sparsity(model: nn.Module) -> float:
     return dead / total
 
 
+# ── Phase 16a: DST cycle helpers ────────────────────────────
+
+
+def _compute_dense_grad_scores(
+    model: nn.Module, x: Tensor, y: Tensor, vocab_size: int
+) -> dict[str, Tensor]:
+    """RigL 용 dense gradient magnitude 측정.
+
+    edge_mask 를 일시적으로 모두 1 로 설정 → forward → ``torch.autograd.grad`` 로 weight gradient
+    직접 추출 → edge_mask 복원. 모델의 ``.grad`` 속성을 건드리지 않아 train loop 의 gradient
+    accumulation / 동결 layer 와 안전 (gemini #3307952471).
+
+    Returns:
+        layer 이름 → score tensor (shape == edge_mask shape).
+    """
+    # 1. mask 저장 + dense 설정
+    saved_masks: dict[str, Tensor] = {}
+    target_modules: dict[str, HybridGraphLinear] = {}
+    for name, mod in model.named_modules():
+        if isinstance(mod, HybridGraphLinear):
+            saved_masks[name] = mod.edge_mask.clone()
+            mod.edge_mask.fill_(1.0)
+            target_modules[name] = mod
+    try:
+        # 2. 별도 forward (현재 train step 의 gradient 와 분리)
+        logits = model(x)
+        loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
+        # 3. torch.autograd.grad 로 직접 gradient 추출 (.grad 미사용, side-effect 없음)
+        weights_to_grad = [
+            mod.weight for mod in target_modules.values() if mod.weight.requires_grad
+        ]
+        grads = (
+            torch.autograd.grad(loss, weights_to_grad, allow_unused=True) if weights_to_grad else []
+        )
+        # 4. score 추출
+        scores: dict[str, Tensor] = {}
+        grad_iter = iter(grads)
+        for name, mod in target_modules.items():
+            if not mod.weight.requires_grad:
+                # 동결 layer — 0 score (regrow 우선순위 최하)
+                scores[name] = torch.zeros_like(mod.weight)
+                continue
+            g = next(grad_iter)
+            scores[name] = (
+                g.detach().abs().clone() if g is not None else torch.zeros_like(mod.weight)
+            )
+        return scores
+    finally:
+        # 5. mask 복원 — 예외 발생해도 항상 실행 (CodeRabbit #3308022927). 미복원 시 학습이
+        # all-1 mask 로 계속되어 paradigm 의 prune 효과 사라짐.
+        for name, mod in target_modules.items():
+            mod.edge_mask.copy_(saved_masks[name])
+
+
+def _dst_swap_step(
+    model: nn.Module,
+    swap_fraction: float,
+    regrow_method: Literal["random", "rigl"],
+    rigl_scores: dict[str, Tensor] | None,
+) -> dict[str, dict]:
+    """DST cycle: 각 HybridGraphLinear 의 alive 중 swap_fraction 만큼 prune + 같은 수 regrow.
+
+    constant sparsity 유지 — prune 한 수와 regrow 한 수가 같음.
+
+    Returns:
+        layer 이름 → {pruned, regrown} count
+    """
+    summary: dict[str, dict] = {}
+    for name, mod in model.named_modules():
+        if not isinstance(mod, HybridGraphLinear):
+            continue
+        # prune alive 의 swap_fraction
+        n_pruned = mod.prune_bottom_fraction(swap_fraction)
+        # 같은 수 regrow
+        if regrow_method == "rigl":
+            if rigl_scores is None or name not in rigl_scores:
+                raise RuntimeError(f"regrow_method='rigl' 인데 layer '{name}' 의 scores 없음")
+            n_regrown = mod.regrow_by_score(n_pruned, rigl_scores[name])
+        else:  # random (SET)
+            n_regrown = mod.regrow_random(n_pruned)
+        summary[name] = {"pruned": n_pruned, "regrown": n_regrown}
+    return summary
+
+
 def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     """1 run 학습 — Phase 13/14/15 sweep unit.
 
@@ -231,6 +342,7 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
     losses: list[float] = []
     prune_event: dict | None = None
+    dst_cycles: list[dict] = []
     model.train()
     for step in range(1, config.max_steps + 1):
         x, y = next(data_iter)
@@ -255,6 +367,33 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
                 "sparsity_after": _model_sparsity(model),
             }
 
+        # Phase 16a: DST swap cycle (prune+regrow) after initial prune
+        if (
+            config.regrow_method is not None
+            and config.dst_period is not None
+            and config.prune_at_step is not None
+            and step > config.prune_at_step
+            and (step - config.prune_at_step) % config.dst_period == 0
+            and (config.dst_end_step is None or step <= config.dst_end_step)
+            and config.dst_swap_fraction > 0
+        ):
+            rigl_scores = None
+            if config.regrow_method == "rigl":
+                rigl_scores = _compute_dense_grad_scores(model, x, y, config.vocab_size)
+            cycle_summary = _dst_swap_step(
+                model,
+                swap_fraction=config.dst_swap_fraction,
+                regrow_method=config.regrow_method,
+                rigl_scores=rigl_scores,
+            )
+            dst_cycles.append(
+                {
+                    "step": step,
+                    "total_swap": sum(c["pruned"] for c in cycle_summary.values()),
+                    "sparsity_after": _model_sparsity(model),
+                }
+            )
+
     n_last = min(100, len(losses))
     final_loss = sum(losses[-n_last:]) / n_last if n_last > 0 else 0.0
 
@@ -264,6 +403,7 @@ def train_hybrid_transformer_lm(config: HybridTransformerTrainConfig) -> dict:
         "final_adj": _snapshot_adj(model),
         "final_sparsity": _model_sparsity(model),
         "prune_event": prune_event,
+        "dst_cycles": dst_cycles,
     }
 
 
