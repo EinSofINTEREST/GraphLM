@@ -373,6 +373,127 @@ class HybridGraphLinear(nn.Module):
             if reset_weight:
                 self.weight[i0, i1, i2, i3] = 0.0
 
+    # ── Phase 16b: shape expansion (Net2Net-style) ──────────────
+
+    @staticmethod
+    def _grow_param(old: nn.Parameter, new_data: Tensor, dim: int) -> nn.Parameter:
+        """Concat old + new_data along ``dim``, preserving ``requires_grad``.
+
+        Copilot #3308323611 — ``.data`` 비권장 + freeze (requires_grad=False) 한 layer 가
+        Parameter replace 후 unfreeze 되는 buf 회피. ``detach().clone()`` 사용 + 기존 flag 복원.
+        """
+        combined = torch.cat([old.detach().clone(), new_data], dim=dim)
+        new_param = nn.Parameter(combined)
+        new_param.requires_grad_(old.requires_grad)
+        return new_param
+
+    def grow_out(self, n_new_groups: int) -> None:
+        """G_out 차원을 ``n_new_groups`` 만큼 확장 (out_features 증가).
+
+        function preservation 의 책임은 **downstream layer 의 ``grow_in``** 에 있음:
+        - 본 layer 의 새 G_out row 가 어떤 weight 든, downstream 이 새 input column 의 weight 를
+          0 으로 받으면 전체 forward 는 변경 없음.
+        - 본 layer 자체의 기존 G_out 출력은 영향 없음 (새 row 가 다른 row 와 독립).
+
+        새 weight: 작은 random init (기존 와 같은 fan_in 기반). adj_outer/inner = 1, bias = 0,
+        edge_mask = 1.
+
+        Args:
+            n_new_groups: 추가할 G_out group 수 (positive int).
+
+        Side effects (Parameter / Buffer **replace**):
+            optimizer state 가 기존 weight/adj_* 의 id 에 묶여 있어 grow 후 새 Parameter 에
+            대한 state 가 없음. **caller (train loop) 가 optimizer 를 재생성** 해야 함.
+        """
+        if not isinstance(n_new_groups, int) or n_new_groups < 1:
+            raise ValueError(f"n_new_groups must be a positive int, got {n_new_groups!r}")
+        with torch.no_grad():
+            k = self.group_size
+            G_in = self.n_groups_in
+            # 새 weight rows — 같은 fan_in (in_features) 기반 uniform
+            bound = 1.0 / math.sqrt(self.in_features)
+            new_w = torch.empty(
+                n_new_groups,
+                G_in,
+                k,
+                k,
+                device=self.weight.device,
+                dtype=self.weight.dtype,
+            ).uniform_(-bound, bound)
+            self.weight = self._grow_param(self.weight, new_w, dim=0)
+            # adj_outer / adj_inner / edge_mask 새 rows 는 1.0
+            new_outer = torch.ones(
+                n_new_groups, G_in, device=self.adj_outer.device, dtype=self.adj_outer.dtype
+            )
+            self.adj_outer = self._grow_param(self.adj_outer, new_outer, dim=0)
+            new_inner = torch.ones(
+                n_new_groups,
+                G_in,
+                k,
+                k,
+                device=self.adj_inner.device,
+                dtype=self.adj_inner.dtype,
+            )
+            self.adj_inner = self._grow_param(self.adj_inner, new_inner, dim=0)
+            new_mask = torch.ones(
+                n_new_groups, G_in, k, k, device=self.edge_mask.device, dtype=self.edge_mask.dtype
+            )
+            self.edge_mask = torch.cat([self.edge_mask, new_mask], dim=0)
+            # bias 추가 (0 init)
+            if self.bias is not None:
+                new_bias = torch.zeros(
+                    n_new_groups * k, device=self.bias.device, dtype=self.bias.dtype
+                )
+                self.bias = self._grow_param(self.bias, new_bias, dim=0)
+            # 메타데이터 갱신
+            self.n_groups_out += n_new_groups
+            self.out_features += n_new_groups * k
+
+    def grow_in(self, n_new_groups: int) -> None:
+        """G_in 차원을 ``n_new_groups`` 만큼 확장 (in_features 증가).
+
+        **function preservation 의 핵심 layer** — 새 input column 의 weight 를 0 으로 초기화하여
+        upstream layer 가 어떤 새 output 을 보내든 본 layer 의 기존 output 은 변경 없음.
+
+        새 weight: **0** (function preservation). adj_outer/inner = 1, edge_mask = 1, bias 영향 없음.
+
+        Args:
+            n_new_groups: 추가할 G_in group 수 (positive int).
+
+        Side effects: ``grow_out`` 과 동일 (Parameter replace, optimizer 재생성 필요).
+        """
+        if not isinstance(n_new_groups, int) or n_new_groups < 1:
+            raise ValueError(f"n_new_groups must be a positive int, got {n_new_groups!r}")
+        with torch.no_grad():
+            k = self.group_size
+            G_out = self.n_groups_out
+            # 새 weight columns = 0 (function preservation 의 핵심)
+            new_w = torch.zeros(
+                G_out, n_new_groups, k, k, device=self.weight.device, dtype=self.weight.dtype
+            )
+            self.weight = self._grow_param(self.weight, new_w, dim=1)
+            # adj_outer / adj_inner / edge_mask 새 columns 는 1.0
+            new_outer = torch.ones(
+                G_out, n_new_groups, device=self.adj_outer.device, dtype=self.adj_outer.dtype
+            )
+            self.adj_outer = self._grow_param(self.adj_outer, new_outer, dim=1)
+            new_inner = torch.ones(
+                G_out,
+                n_new_groups,
+                k,
+                k,
+                device=self.adj_inner.device,
+                dtype=self.adj_inner.dtype,
+            )
+            self.adj_inner = self._grow_param(self.adj_inner, new_inner, dim=1)
+            new_mask = torch.ones(
+                G_out, n_new_groups, k, k, device=self.edge_mask.device, dtype=self.edge_mask.dtype
+            )
+            self.edge_mask = torch.cat([self.edge_mask, new_mask], dim=1)
+            # 메타데이터 갱신
+            self.n_groups_in += n_new_groups
+            self.in_features += n_new_groups * k
+
     def extra_repr(self) -> str:
         return (
             f"in_features={self.in_features}, out_features={self.out_features}, "
