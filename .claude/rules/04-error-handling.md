@@ -60,14 +60,18 @@ except FileNotFoundError:
 class GraphLMError(Exception):
     """GraphLM 패키지의 모든 사용자 정의 예외 base."""
 
+
 class DataLoadError(GraphLMError):
     """데이터 로드 실패."""
+
 
 class ConfigError(GraphLMError):
     """잘못된 실험 설정."""
 
+
 class ModelError(GraphLMError):
     """모델 정의/forward 단계 오류."""
+
 
 class ReproducibilityError(GraphLMError):
     """시드 고정 실패 / 결정론 깨짐 감지."""
@@ -84,13 +88,13 @@ base 클래스가 있으면 호출자가 `except GraphLMError` 로 라이브러�
 ```python
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
     reraise=True,
 )
-def download_dataset(url: str) -> Path:
-    ...
+def download_dataset(url: str) -> Path: ...
 ```
 
 학습 루프 안의 NaN/Inf 감지 같은 "재시도하면 의미 없는" 케이스는 retry 대신 즉시 fail.
@@ -121,6 +125,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def train_epoch(model, loader, optimizer) -> dict:
     logger.info("epoch 시작", extra={"n_batches": len(loader)})
     for batch_idx, batch in enumerate(loader):
@@ -149,12 +154,15 @@ def train_epoch(model, loader, optimizer) -> dict:
 
 ```python
 # Good
-logger.info("eval 완료", extra={
-    "split": "test",
-    "accuracy": 0.873,
-    "loss": 0.42,
-    "n_samples": 1024,
-})
+logger.info(
+    "eval 완료",
+    extra={
+        "split": "test",
+        "accuracy": 0.873,
+        "loss": 0.42,
+        "n_samples": 1024,
+    },
+)
 
 # Bad — 검색·집계 불가
 logger.info(f"eval 완료: test split, acc=0.873, loss=0.42, n=1024")
@@ -202,9 +210,7 @@ def assert_deterministic(seed: int, run_fn) -> None:
     set_seed(seed)
     result_b = run_fn()
     if not torch.allclose(result_a, result_b):
-        raise ReproducibilityError(
-            f"동일 시드 ({seed}) 에서 결과 불일치 — 결정론 깨짐"
-        )
+        raise ReproducibilityError(f"동일 시드 ({seed}) 에서 결과 불일치 — 결정론 깨짐")
 ```
 
 CI 또는 디버깅 모드에서 활성화. 매 학습마다는 비용 과다.
