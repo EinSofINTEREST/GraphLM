@@ -27,7 +27,9 @@ jobs:
           cache: pip
 
       - name: Install ruff
-        run: pip install ruff
+        # uv.lock 의 ruff 버전과 맞춘다 — 버전이 다르면 로컬과 CI 의 포맷 판정이 어긋난다 (이슈 #86).
+        # ruff 를 올릴 때는 uv.lock · 이 줄 · 포맷 결과를 같은 PR 에서 함께 바꾼다.
+        run: pip install "ruff==0.17.0"
 
       - name: Check ruff format
         run: |

@@ -121,8 +121,8 @@ def small_graph():
 
 ```python
 @pytest.mark.slow
-def test_full_epoch_runs():
-    ...
+def test_full_epoch_runs(): ...
+
 
 @pytest.mark.gpu
 def test_cuda_forward():
@@ -130,9 +130,9 @@ def test_cuda_forward():
         pytest.skip("CUDA 미사용")
     ...
 
+
 @pytest.mark.network
-def test_hf_hub_download():
-    ...
+def test_hf_hub_download(): ...
 ```
 
 `pyproject.toml` 에 마커 등록:

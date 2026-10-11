@@ -60,6 +60,7 @@ def normalize_features(
 ) -> Tensor:
     return x / (x.norm(dim=-1, keepdim=True) + eps)
 
+
 # Bad — 타입 없음
 def normalize_features(x, eps=1e-6):
     return x / (x.norm(dim=-1, keepdim=True) + eps)
@@ -70,8 +71,8 @@ def normalize_features(x, eps=1e-6):
 ```python
 from typing import TypeAlias
 
-NodeFeatures: TypeAlias = Tensor          # shape: [n_nodes, feat_dim]
-EdgeIndex: TypeAlias = Tensor             # shape: [2, n_edges]
+NodeFeatures: TypeAlias = Tensor  # shape: [n_nodes, feat_dim]
+EdgeIndex: TypeAlias = Tensor  # shape: [2, n_edges]
 GraphBatch: TypeAlias = dict[str, Tensor]
 ```
 
@@ -89,6 +90,7 @@ def process(item: Item) -> Result:
     if item.cached:
         return item.cache
     return compute(item)
+
 
 # Bad — else 중첩
 def process(item: Item) -> Result:
@@ -143,8 +145,8 @@ class GraphEncoder(nn.Module):
         super().__init__()
         ...
 
-    def forward(self, x: Tensor, edge_index: Tensor) -> Tensor:
-        ...
+    def forward(self, x: Tensor, edge_index: Tensor) -> Tensor: ...
+
 
 # Bad — 모델이 데이터 로드까지
 class GraphEncoder(nn.Module):
@@ -287,6 +289,7 @@ def append_item(item, items=[]):
     items.append(item)
     return items
 
+
 # Good
 def append_item(item, items=None):
     if items is None:
@@ -318,6 +321,7 @@ except (ValueError, RuntimeError) as err:
 def is_valid(s: str) -> bool:
     result = len(s) > 0
     return result
+
 
 # Good
 def is_valid(s: str) -> bool:
@@ -478,16 +482,16 @@ from graphlm.utils import set_seed
 logger = logging.getLogger(__name__)
 DEFAULT_HIDDEN_DIM = 128
 
-# 5. Public API (클래스 / 함수)
-class GraphEncoder(nn.Module):
-    ...
 
-def aggregate(x: Tensor, edge_index: Tensor) -> Tensor:
-    ...
+# 5. Public API (클래스 / 함수)
+class GraphEncoder(nn.Module): ...
+
+
+def aggregate(x: Tensor, edge_index: Tensor) -> Tensor: ...
+
 
 # 6. Private helpers
-def _normalize(x: Tensor) -> Tensor:
-    ...
+def _normalize(x: Tensor) -> Tensor: ...
 ```
 
 ## Code Review Checklist

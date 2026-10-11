@@ -174,10 +174,12 @@ def process(item: Item) -> Result:
 
 ```python
 # ❌ Magic numbers
-if score > 0.85: ...
+if score > 0.85:
+    ...
 # ✅ Named constants
 ACCEPT_THRESHOLD = 0.85
-if score > ACCEPT_THRESHOLD: ...
+if score > ACCEPT_THRESHOLD:
+    ...
 ```
 
 ```python
@@ -192,10 +194,13 @@ def append(item, items=None):
 
 ```python
 # ❌ bare except
-try: risky()
-except: pass
+try:
+    risky()
+except:
+    pass
 # ✅ 구체적 예외
-try: risky()
+try:
+    risky()
 except (ValueError, RuntimeError) as err:
     logger.warning("recovered", exc_info=err)
 ```
@@ -203,6 +208,7 @@ except (ValueError, RuntimeError) as err:
 ```python
 # ❌ wildcard import
 from graphlm.models import *
+
 # ✅ 명시적 import
 from graphlm.models import GraphEncoder
 ```
@@ -267,14 +273,18 @@ except FileNotFoundError as err:
 
 ```python
 import logging
+
 logger = logging.getLogger(__name__)
 
 # Good — structured
-logger.info("eval 완료", extra={
-    "split": "test",
-    "accuracy": 0.873,
-    "n_samples": 1024,
-})
+logger.info(
+    "eval 완료",
+    extra={
+        "split": "test",
+        "accuracy": 0.873,
+        "n_samples": 1024,
+    },
+)
 
 # Bad — 문자열 보간
 logger.info(f"eval 완료: acc=0.873, n=1024")
@@ -307,10 +317,13 @@ def test_load_dataset_returns_expected_size(tmp_path):
 ### Parametrize
 
 ```python
-@pytest.mark.parametrize("input_, expected", [
-    ("http://example.com", "https://example.com"),
-    ("https://www.example.com", "https://example.com"),
-])
+@pytest.mark.parametrize(
+    "input_, expected",
+    [
+        ("http://example.com", "https://example.com"),
+        ("https://www.example.com", "https://example.com"),
+    ],
+)
 def test_normalize_url(input_, expected):
     assert normalize_url(input_) == expected
 ```
