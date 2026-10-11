@@ -39,7 +39,7 @@ GraphLM 의 graph 는 **데이터를 graph 로 보는** (data-as-graph) 방향�
 | 에러 처리 | `.claude/rules/04-error-handling.md` | 예외 타입, 재시도, 로깅 필드 |
 | 테스트 작성 | `.claude/rules/05-testing.md` | `tests/` 디렉토리 구조, 커버리지 70% |
 | 아키텍처 이해 | `.claude/rules/01-architecture.md` | 모듈 레이아웃, 데이터 흐름, 노트북 구성 |
-| **AI 작업 진행** | `.claude/rules/07-workflow.md` | **자율 진행 / commit-per-TODO / PR 자동 / 권한 최소화** |
+| **AI 작업 진행** | 공통 하네스 `~/.claude/rules/` + `.claude/rules/07-workflow.md` | **공통: 이슈 먼저 / 자율 진행 / commit-per-TODO / PR / 권한 / Label · Type / 결정 기록 / 오케스트레이션 — 전용: 스크립트 · 노트북 · loop.md** |
 | CI/머지 게이트 | `docs/ci/conventions.md` | Required checks, CODEOWNERS, Ruleset |
 | Status check 이름 | `docs/ci/status-checks.md` | 단일 소스, 변경 절차 |
 | 논문/레퍼런스 요약 | `docs/papers/README.md` | 디렉토리 구조, 파일명/frontmatter 규칙, 추가 절차 |
@@ -92,27 +92,12 @@ docs/papers/    → 논문/레퍼런스 요약 (md, frontmatter 규칙 + 주제�
 
 ## AI 작업 진행 규약
 
-상세는 [`.claude/rules/07-workflow.md`](.claude/rules/07-workflow.md). 핵심 6 규약:
+공통 규약 (이슈 먼저 · 자율 진행 경계 · commit-per-TODO · PR 자동 · 권한 최소화 · Label/Type · 결정 기록 · 오케스트레이션 · PR 피드백) 은
+사용자 레벨 하네스 `~/.claude/CLAUDE.md` · `~/.claude/rules/` 가 기본값이다 (2026-10-11 이관, 이슈 #84). 프로젝트 규칙이 다르게 정하면 프로젝트가 우선한다.
+본 저장소 전용 사항과 구 규약 번호 대응표는 [`.claude/rules/07-workflow.md`](.claude/rules/07-workflow.md). 요점:
 
-1. **이슈 먼저 생성** — 코드 수정 시작 전 GitHub 이슈 생성. 큰 작업은 메인 + sub-issue N개로 분할 후 모두 사전 생성 (Sub-issue Relation 활성화). PR 직전 ad-hoc 이슈 금지.
-2. **자율 진행** — 시스템 변경 / destructive 권한 / 외부 영향 / 모호 영역만 사용자 확인. 그 외는 쿼리 의도 기반 자율 진행.
-3. **Commit-per-TODO** — 별 언급 없으면 논리적 변경 단위마다 commit (메시지 컨벤션 준수).
-4. **PR 자동 생성** — 작업 완료 직후 컨벤션 + 템플릿 준수해서 `Closes #<sub-issue>` 포함 PR 자동 생성. 마지막 sub-issue PR 에서 메인 이슈도 close.
-5. **권한 사용 최소화** — 새 permission / 외부 도구 / 의존성은 작업 완수에 불가피한 경우에만.
-6. **Label · Issue Type 부여 필수** — 이슈는 **issue prefix** 기준 Label + Type (`[FEATURE]→enhancement/Feature`, `[REFACTOR]→refactor/Task`, `[CHORE]→chore/Task`, `[DOCS]→documentation/Task`, `[FIX]→bug/Bug`, `[HOTFIX]→bug+hotfix/Bug`). PR Label 은 그 PR 이 닫는 이슈의 Label 과 동일. **부여 수단: `scripts/gh-meta.sh issue <N>` / `scripts/gh-meta.sh pr <N>` — 수동 `gh api graphql` 대신 항상 이 스크립트 사용**. 표기 체계 3분리 (commit `[FEAT]:` / PR `[FEAT#N]` / issue `[FEATURE]`) 는 [규약 6](.claude/rules/07-workflow.md) 참조.
-
-## PR 생성 후 자동 동작
-
-`gh pr create` 가 성공한 직후 사용자가 별도 지시하지 않아도 다음을 자동 수행한다:
-
-1. **`@.claude/loop.md` 를 3분 주기 cron 으로 등록** — `CronCreate` 호출
-   - cron 표현식: `*/3 * * * *`
-   - prompt: `@.claude/loop.md 절차에 따라 PR #N 의 CI 와 코멘트를 점검하고 처리해줘.` (N = 방금 생성한 PR 번호)
-   - recurring: `true`
-2. 사용자에게 한 줄 보고 — cron job ID 와 본 PR url 포함
-
-자동 등록 예외:
-- 사용자가 명시적으로 "loop 등록하지 마" 라고 지시하면 생략
-- draft PR 등 후속 polling 이 무의미한 케이스가 명백하면 사용자에게 묻고 진행
-
-자동 종료는 `.claude/loop.md` 의 "자동 중단 (CI 완료 후 2회 연속 무동작 시)" 섹션이 처리한다.
+- Label 은 `scripts/gh-meta.sh issue <N>` / `pr <N>` 으로 부여. Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 설정된 경우에만 부여된다 (조회 방법은 스크립트 상단 주석)
+- 노트북 (`.ipynb`) 은 `make nb-clean` 후 커밋
+- 설계 변경 · 의사 결정은 PR 본문 "결정" 섹션에 ADR 형식으로 (전용 저장소 없음)
+- PR 후 피드백은 세션 안에서 `Monitor` 로 처리하고 `scripts/pr-resolve-comments.sh` 로 완료 표시. `gh pr create` 직후 `.claude/loop.md` 를 cron 으로 자동 등록하던 동작은 폐지 — `loop.md` 는 사용자가 `/loop` 로 요청할 때만 쓰는 수동 보조 수단, `.claude/pr-feedback.md` 는 별도 자동화. 세션 종료 후 피드백은 사용자가 처리 (`@claude` 워크플로 없음)
+- `~/.claude` 가 없는 환경 (CI) 에는 공통 규약이 로드되지 않는다 — 위 "반드시 지킬 규칙" 과 07-workflow.md 만 적용
