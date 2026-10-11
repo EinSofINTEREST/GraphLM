@@ -19,7 +19,7 @@
 | [04-error-handling.md](04-error-handling.md) | 예외 타입 / 로깅 / NaN 감지 / 결정론 |
 | [05-testing.md](05-testing.md) | pytest 패턴 / fixture / 마커 / 커버리지 |
 | [06-code-style.md](06-code-style.md) | PEP 8 / ruff / 네이밍 / docstring / 커밋 컨벤션 |
-| [07-workflow.md](07-workflow.md) | AI 자율 진행 / commit-per-TODO / PR 자동 / Label/Type |
+| [07-workflow.md](07-workflow.md) | AI 작업 규약의 **프로젝트 전용 사항** — 공통 규약 (이슈 먼저 / 자율 진행 / commit-per-TODO / PR / Label·Type / 결정 기록 / 오케스트레이션) 은 사용자 레벨 하네스 `~/.claude/rules/` |
 
 > **참고**: 본 프로젝트는 production 크롤러/파이프라인이 아닌 연구 프로젝트입니다.
 > 기존 ruleset 중 도메인 특화 문서(`02-crawler-implementation.md`,
@@ -46,7 +46,7 @@
 2. **단순성** — 연구 코드는 읽기 쉬워야 한다. 과도한 추상화 금지
 3. **분리** — 로직은 `src/graphlm/`, 실험 흐름은 `notebooks/`
 4. **테스트** — 패키지 코드는 pytest 로 검증. 노트북은 정적 lint 만
-5. **컨벤션** — 커밋·PR·이슈 prefix 3분리 체계 ([07-workflow.md](07-workflow.md) 규약 6)
+5. **컨벤션** — 커밋·PR·이슈 prefix 3분리 체계 (공통 하네스 `~/.claude/rules/03-conventions.md`, 구 [07-workflow.md](07-workflow.md) 규약 6)
 
 ## CI 게이트
 

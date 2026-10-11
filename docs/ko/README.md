@@ -114,9 +114,9 @@ uv run jupyter nbconvert --to notebook --execute notebooks/01-experiments/<파�
 ## 개발 워크플로 (AI 협업 포함)
 
 본 프로젝트는 AI(Claude, Copilot 등)와의 협업을 전제로 설계되었습니다.
-모든 워크플로 규약은 [.claude/rules/07-workflow.md](../../.claude/rules/07-workflow.md) 에서 정의합니다.
+공통 워크플로 규약은 사용자 레벨 하네스 `~/.claude/rules/` 에, 본 저장소 전용 사항은 [.claude/rules/07-workflow.md](../../.claude/rules/07-workflow.md) 에 있습니다.
 
-핵심 6 규약:
+핵심 규약:
 
 1. **이슈 먼저** — 코드 수정 전 GitHub 이슈 생성
 2. **자율 진행** — destructive / 시스템 / 외부 영향만 사용자 확인
