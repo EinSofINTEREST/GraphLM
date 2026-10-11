@@ -92,28 +92,12 @@ docs/papers/    → 논문/레퍼런스 요약 (md, frontmatter 규칙 + 주제�
 
 ## AI 작업 진행 규약
 
-공통 규약은 사용자 레벨 하네스 `~/.claude/CLAUDE.md` · `~/.claude/rules/` 에 있다 (2026-10-11 이관, 이슈 #84).
-본 저장소 전용 사항과 구 규약 번호 대응표는 [`.claude/rules/07-workflow.md`](.claude/rules/07-workflow.md).
+공통 규약 (이슈 먼저 · 자율 진행 경계 · commit-per-TODO · PR 자동 · 권한 최소화 · Label/Type · 결정 기록 · 오케스트레이션 · PR 피드백) 은
+사용자 레벨 하네스 `~/.claude/CLAUDE.md` · `~/.claude/rules/` 가 기본값이다 (2026-10-11 이관, 이슈 #84). 프로젝트 규칙이 다르게 정하면 프로젝트가 우선한다.
+본 저장소 전용 사항과 구 규약 번호 대응표는 [`.claude/rules/07-workflow.md`](.claude/rules/07-workflow.md). 요점:
 
-핵심 규약 요약 — `~/.claude` 가 없는 환경에서는 이 요약과 07-workflow.md 가 기준이다:
-
-1. **이슈 먼저** — 코드 수정 전 GitHub 이슈. 큰 작업은 메인 + sub-issue N개로 모두 사전 생성, PR 직전 ad-hoc 이슈 금지.
-2. **자율 진행** — 시스템 변경 / destructive / 외부 영향 / 모호 영역 **네 가지만** 사용자 확인. 그 외는 묻지 않는다.
-3. **Commit-per-TODO** — 논리적 변경 단위마다 즉시 commit. 노트북은 `make nb-clean` 후.
-4. **PR 자동 생성** — 템플릿 전 섹션 + `Closes #N` 하나 + Label. base 는 `main`. 머지는 사람이.
-5. **권한 최소화** — 새 permission / 외부 도구 / 의존성은 불가피할 때만.
-6. **Label 필수, Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 설정된 경우에만 부여** (없으면 `scripts/gh-meta.sh` 가 Type 을 건너뛴다 — 조회 방법은 스크립트 상단 주석) — 이슈 prefix 기준 매핑 (`[FEATURE]→enhancement/Feature`, `[FIX]→bug/Bug`, `[HOTFIX]→bug+hotfix/Bug`, `[REFACTOR]→refactor/Task`, `[CHORE]→chore/Task`, `[DOCS]→documentation/Task`). 부여는 **`scripts/gh-meta.sh issue <N>` / `pr <N>`**. 표기 3분리: commit `[FEAT]:` / PR `[FEAT#N]` / issue `[FEATURE]`.
-7. **결정은 즉시 기록** — "두 안 중 하나" 를 고른 모든 경우. 본 저장소는 PR 본문 "결정" 섹션에 ADR 형식으로 (검토한 대안 필수).
-8. **메인 세션은 오케스트레이터** — 소통 · 설계 · 결정 · 통합 · **검수** 는 직접, 닫힌 구현 · 탐색 · 기계적 변경은 역할 (`~/.claude/agents/`) 과 티어 (T0 ~ T3) 로 위임. 서브 에이전트는 커밋 · push · PR 을 하지 않는다. 티어 → 모델 매핑은 `~/.claude/rules/02-orchestration.md` 가 단일 출처.
-
-## PR 생성 후 피드백 대응 (이슈 #84 — cron 자동 등록 폐지)
-
-절차는 공통 `~/.claude/rules/06-pr-feedback.md`. 본 저장소 전용:
-
-- **세션이 살아 있으면** `Monitor` 로 CI · 코멘트를 감시하고 그 세션에서 처리한다. CI 실패를 코멘트보다 먼저.
-  처리 완료 표시는 `scripts/pr-resolve-comments.sh <PR번호> <comment_id...>`.
-- **`gh pr create` 직후 `@.claude/loop.md` 를 3분 cron 으로 등록하던 자동 동작은 폐지** 됐다. 사용자가 명시적으로 요청하지 않는 한
-  `CronCreate` 를 호출하지 않는다. `.claude/loop.md` 는 사용자가 `/loop` 로 요청할 때만 쓰는 수동 보조 수단이다.
-- `.claude/pr-feedback.md` (신규 PR 자동 리뷰) 는 별도 자동화 — 사용자가 직접 등록할 때만 돈다.
-- 세션을 닫은 뒤의 피드백은 사용자가 처리한다 (본 저장소에는 `@claude` 멘션용 워크플로가 없다). 세션 종료 전 PR 링크와 함께 한 줄로 안내.
-- 커밋 메시지: `[FIX]: 피드백 반영, {요약}` / `[FIX]: CI 복구, {job 이름} - {요약}`.
+- Label 은 `scripts/gh-meta.sh issue <N>` / `pr <N>` 으로 부여. Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 설정된 경우에만 부여된다 (조회 방법은 스크립트 상단 주석)
+- 노트북 (`.ipynb`) 은 `make nb-clean` 후 커밋
+- 설계 변경 · 의사 결정은 PR 본문 "결정" 섹션에 ADR 형식으로 (전용 저장소 없음)
+- PR 후 피드백은 세션 안에서 `Monitor` 로 처리하고 `scripts/pr-resolve-comments.sh` 로 완료 표시. `gh pr create` 직후 `.claude/loop.md` 를 cron 으로 자동 등록하던 동작은 폐지 — `loop.md` 는 사용자가 `/loop` 로 요청할 때만 쓰는 수동 보조 수단, `.claude/pr-feedback.md` 는 별도 자동화. 세션 종료 후 피드백은 사용자가 처리 (`@claude` 워크플로 없음)
+- `~/.claude` 가 없는 환경 (CI) 에는 공통 규약이 로드되지 않는다 — 위 "반드시 지킬 규칙" 과 07-workflow.md 만 적용
