@@ -102,7 +102,7 @@ docs/papers/    → 논문/레퍼런스 요약 (md, frontmatter 규칙 + 주제�
 3. **Commit-per-TODO** — 논리적 변경 단위마다 즉시 commit. 노트북은 `make nb-clean` 후.
 4. **PR 자동 생성** — 템플릿 전 섹션 + `Closes #N` 하나 + Label. base 는 `main`. 머지는 사람이.
 5. **권한 최소화** — 새 permission / 외부 도구 / 의존성은 불가피할 때만.
-6. **Label · Issue Type 필수** — 이슈 prefix 기준 매핑 (`[FEATURE]→enhancement/Feature`, `[FIX]→bug/Bug`, `[HOTFIX]→bug+hotfix/Bug`, `[REFACTOR]→refactor/Task`, `[CHORE]→chore/Task`, `[DOCS]→documentation/Task`). 부여는 **`scripts/gh-meta.sh issue <N>` / `pr <N>`**. 표기 3분리: commit `[FEAT]:` / PR `[FEAT#N]` / issue `[FEATURE]`.
+6. **Label 필수, Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 설정된 경우에만 부여** (없으면 `scripts/gh-meta.sh` 가 Type 을 건너뛴다 — 조회 방법은 스크립트 상단 주석) — 이슈 prefix 기준 매핑 (`[FEATURE]→enhancement/Feature`, `[FIX]→bug/Bug`, `[HOTFIX]→bug+hotfix/Bug`, `[REFACTOR]→refactor/Task`, `[CHORE]→chore/Task`, `[DOCS]→documentation/Task`). 부여는 **`scripts/gh-meta.sh issue <N>` / `pr <N>`**. 표기 3분리: commit `[FEAT]:` / PR `[FEAT#N]` / issue `[FEATURE]`.
 7. **결정은 즉시 기록** — "두 안 중 하나" 를 고른 모든 경우. 본 저장소는 PR 본문 "결정" 섹션에 ADR 형식으로 (검토한 대안 필수).
 8. **메인 세션은 오케스트레이터** — 소통 · 설계 · 결정 · 통합 · **검수** 는 직접, 닫힌 구현 · 탐색 · 기계적 변경은 역할 (`~/.claude/agents/`) 과 티어 (T0 ~ T3) 로 위임. 서브 에이전트는 커밋 · push · PR 을 하지 않는다. 티어 → 모델 매핑은 `~/.claude/rules/02-orchestration.md` 가 단일 출처.
 

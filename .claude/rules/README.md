@@ -32,11 +32,11 @@
 1. 진입점: 루트 [`CLAUDE.md`](../../CLAUDE.md) (목차)
 2. 아키텍처 이해: [01-architecture.md](01-architecture.md)
 3. 코드 스타일: [06-code-style.md](06-code-style.md)
-4. AI 협업 워크플로: [07-workflow.md](07-workflow.md)
+4. AI 협업 워크플로: 공통 하네스 `~/.claude/rules/01-workflow.md` · `02-orchestration.md`, 전용 사항은 [07-workflow.md](07-workflow.md)
 
 **작업 시작 시:**
 
-- 새 기능 → [07-workflow.md](07-workflow.md) 의 issue-first 정책 → [06-code-style.md](06-code-style.md) + [05-testing.md](05-testing.md)
+- 새 기능 → 공통 하네스 `~/.claude/rules/01-workflow.md` 의 issue-first 정책 (전용 사항은 [07-workflow.md](07-workflow.md)) → [06-code-style.md](06-code-style.md) + [05-testing.md](05-testing.md)
 - 버그 수정 → [04-error-handling.md](04-error-handling.md) + 회귀 테스트
 - 노트북 실험 → [01-architecture.md](01-architecture.md) 의 코드/노트북 분리 원칙 준수
 

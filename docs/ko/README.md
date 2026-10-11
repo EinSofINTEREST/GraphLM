@@ -119,7 +119,7 @@ uv run jupyter nbconvert --to notebook --execute notebooks/01-experiments/<파�
 핵심 규약:
 
 1. **이슈 먼저** — 코드 수정 전 GitHub 이슈 생성
-2. **자율 진행** — destructive / 시스템 / 외부 영향만 사용자 확인
+2. **자율 진행** — destructive / 시스템 / 외부 영향 / 모호한 범위만 사용자 확인
 3. **Commit-per-TODO** — 논리적 변경 단위마다 commit
 4. **PR 자동 생성** — 작업 완료 직후 컨벤션 준수 PR 생성
 5. **권한 최소화** — 새 의존성 / 도구는 명시적 사전 확인

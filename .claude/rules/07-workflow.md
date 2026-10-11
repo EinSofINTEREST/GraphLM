@@ -2,7 +2,7 @@
 
 공통 규약은 사용자 레벨 하네스 **`~/.claude/rules/`** 에 있다 (2026-10-11 이관, 이슈 #84).
 이 문서는 **공통 규약이 프로젝트에 위임한 값** 과 **본 저장소만의 추가 규칙** 만 적는다.
-공통 규약과 충돌하면 이 문서가 우선한다. 코드 자체의 규약은 [01-architecture.md](01-architecture.md) ~
+공통 규약과 충돌하면 이 문서가 우선한다. 단, 이 문서에는 **전용 값과 명시적 예외** 만 적는다 — 공통 규약 자체를 바꾸고 싶으면 이 문서에 덮어쓰지 말고 하네스 쪽을 고치고 결정으로 기록한다. 코드 자체의 규약은 [01-architecture.md](01-architecture.md) ~
 [06-code-style.md](06-code-style.md).
 
 > `~/.claude/rules/` 가 없는 환경 (CI 등) 에서는 [CLAUDE.md](../../CLAUDE.md) 의 "반드시 지킬 규칙" 과
@@ -48,7 +48,7 @@
 
 | 용도 | 수단 | 비고 |
 |---|---|---|
-| 이슈 Label + Issue Type | `scripts/gh-meta.sh issue <N>` | title prefix 로 자동 판정. 수동 `gh api graphql` 금지. Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 있을 때만 부여 (스크립트 README 참조) |
+| 이슈 Label + Issue Type | `scripts/gh-meta.sh issue <N>` | title prefix 로 자동 판정. 수동 `gh api graphql` 금지. Issue Type 은 `GRAPHLM_*_TYPE_ID` 환경변수가 설정된 경우에만 부여 — 조회 방법은 `scripts/gh-meta.sh` 상단 주석 |
 | PR Label | `scripts/gh-meta.sh pr <N>` | 닫는 이슈의 Label 과 동기화 |
 | 리뷰 코멘트 처리 완료 표시 | `scripts/pr-resolve-comments.sh <PR> <comment_id...>` | 👀 + resolve 일괄 |
 | sub-issue 연결 | `gh api graphql` `addSubIssue` (공통 `03-conventions.md` 의 명령) | 스크립트 없음 — 직접 호출 허용 |
